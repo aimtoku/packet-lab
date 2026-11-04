@@ -28,7 +28,7 @@ export const BASE_NODES: Record<NodeId, NodeSpec> = {
   ext1: { x: 226, y: 80, type: 'server', name: '', sub: '' },
   ext2: { x: 312, y: 80, type: 'server', name: '', sub: '' },
   laptop: { x: 214, y: 334, type: 'laptop', name: 'ノートPC', sub: '' },
-  ap: { x: 272, y: 310, type: 'ap', name: '公衆AP', sub: '' },
+  ap: { x: 272, y: 316, type: 'ap', name: '公衆AP', sub: '' },
   fakeap: { x: 326, y: 334, type: 'ap', name: '偽AP', sub: '' },
 }
 

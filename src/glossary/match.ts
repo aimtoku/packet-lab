@@ -1,5 +1,7 @@
 import type { Mode, Scenario, Step } from '../types'
+import { subStepsFor } from '../playback/substeps'
 import { scenarios } from '../scenarios'
+import { nodesFor, type NodeMap } from '../topology/route'
 import { TERMS, type Term } from './terms'
 
 export const MODES: readonly Mode[] = ['normal', 'attack', 'defense']
@@ -48,8 +50,19 @@ export function termIdsIn(text: string): string[] {
   return ids
 }
 
-export function stepText(step: Step<string>): string {
-  return [step.label, step.title, ...step.fields.flat(), step.note, step.point ?? ''].join('\n')
+/** ステップで表示する文章すべて（区切りの説明、パケットの層、状態の変化を含む） */
+export function stepText(scenario: Scenario, nodes: NodeMap, step: Step<string>): string {
+  const w = step.wire
+  return [
+    step.label,
+    step.title,
+    ...step.fields.flat(),
+    step.note,
+    step.point ?? '',
+    ...subStepsFor(scenario, nodes, step).map((s) => s.text),
+    ...(w ? [w.app, w.transport ?? '', w.secure ?? '', w.tunnel?.name ?? '', w.tunnel?.transport ?? '', w.remark ?? ''] : []),
+    ...(step.changes ?? []).flatMap((c) => [c.key, c.value]),
+  ].join('\n')
 }
 
 export interface Occurrence {
@@ -76,9 +89,10 @@ function buildIndex(scenario: Scenario): ScenarioIndex {
   const add = (id: string) => {
     if (!terms.includes(id)) terms.push(id)
   }
+  const nodes = nodesFor(scenario)
   for (const mode of MODES) {
     scenario.steps[mode].forEach((step, index) => {
-      const ids = termIdsIn(stepText(step))
+      const ids = termIdsIn(stepText(scenario, nodes, step))
       byStep.set(stepKey(mode, index), ids)
       for (const id of ids) {
         add(id)
@@ -88,6 +102,7 @@ function buildIndex(scenario: Scenario): ScenarioIndex {
   }
   for (const mode of MODES) termIdsIn(scenario.summary[mode]).forEach(add)
   for (const point of scenario.points) termIdsIn(point).forEach(add)
+  for (const table of scenario.states ?? []) termIdsIn(table.title).forEach(add)
   return { terms, steps, byStep }
 }
 

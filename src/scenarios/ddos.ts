@@ -1,7 +1,18 @@
 import { defineScenario } from '../types'
 
 // DNS（UDP）：DNSリフレクション攻撃（DDoS）
-// 図中のIPアドレス（203.0.113.0/24）とドメイン（example.*）は、説明用に予約されたもので、実在のサーバを指しません。
+// 図中のIPアドレス（198.51.100.0/24、203.0.113.0/24）とドメイン（example.*）は、説明用に予約されたもので、実在のサーバを指しません。
+//
+// Webサーバ（被害者）203.0.113.10、踏み台にされるDNSサーバ 198.51.100.53
+const WEB = '203.0.113.10'
+const RESOLVER = '198.51.100.53'
+
+/** 攻撃を受ける前の、被害者側の回線とサービス */
+const CALM = [
+  ['回線の使用率', '5%'],
+  ['Webサービス', '正常'],
+] as const
+
 export const ddos = defineScenario({
   id: 'ddos',
   name: 'DNS（UDP）',
@@ -10,13 +21,37 @@ export const ddos = defineScenario({
     { id: 'atk', name: '攻撃者', sub: 'ボットネット', attacker: true },
     { id: 'res', name: 'DNSサーバ', sub: '踏み台にされる側' },
     { id: 'isp', name: 'ISP', sub: 'DDoS対策' },
-    { id: 'web', name: 'Webサーバ', sub: '203.0.113.10（被害者）' },
+    { id: 'web', name: 'Webサーバ', sub: '被害者' },
   ],
   summary: {
     normal: 'UDPで送るDNSの問合せには、送信元を確かめる手順がありません。応答は、問合せに書かれた送信元IPアドレスへそのまま返ります。',
     attack: '攻撃者が送信元を偽装して、DNSサーバに大量に問い合わせます。何十倍にも大きくなった応答が被害者に集中し、回線やサーバがあふれます（DNSリフレクション攻撃）。',
     defense: 'DNSサーバ側で外部からの再帰問合せを断り、応答の数を制限します。被害者側は、上流のISPやDDoS対策サービスで攻撃の通信を捨ててもらいます。',
   },
+  states: [
+    {
+      id: 'line',
+      title: '被害者側の回線とサービス',
+      columns: ['項目', '状態'],
+      initial: { normal: CALM, attack: CALM, defense: CALM },
+    },
+    {
+      id: 'res',
+      title: 'DNSサーバの設定',
+      columns: ['項目', '設定'],
+      modes: ['attack', 'defense'],
+      initial: {
+        attack: [
+          ['再帰問合せ', 'だれからでも受け付ける（オープンリゾルバ）'],
+          ['応答の数の制限', 'なし'],
+        ],
+        defense: [
+          ['再帰問合せ', '自組織の利用者からだけ受け付ける'],
+          ['応答の数の制限', 'RRLで制限する'],
+        ],
+      },
+    },
+  ],
   steps: {
     normal: [
       {
@@ -32,6 +67,10 @@ export const ddos = defineScenario({
           ['大きさ', '約60バイト'],
         ],
         note: 'UDPには、TCPの3ウェイハンドシェイクのような接続の手順がありません。受け取った側は、送信元IPアドレスが本物かどうかを確かめられません。',
+        send: 'Webサーバ：example.net の名前解決のため、DNSサーバへ問い合わせます。',
+        via: { fw: 'FW：社内から外部のDNSサーバへの問合せなので、通します。' },
+        receive: 'DNSサーバ：問合せに書かれた送信元IPアドレス（203.0.113.10）を、確かめずにそのまま信じます。',
+        wire: { app: 'DNS（問合せ・約60バイト）', transport: 'UDP', srcPort: '52000', dstPort: '53', srcIp: WEB, dstIp: RESOLVER, focus: ['l3', 'l4'] },
       },
       {
         from: 'res',
@@ -45,6 +84,10 @@ export const ddos = defineScenario({
         ],
         note: 'DNSの応答は、問合せより大きくなるのが普通です。EDNS0で大きな応答を許すと、数千バイトになることもあります。',
         point: '「送信元を確かめない」「応答が問合せより大きい」の2つがそろうと、リフレクション（反射）と増幅に悪用されます。',
+        send: 'DNSサーバ：問合せの送信元IPアドレス宛てに、約500バイトの応答を返します。',
+        via: { fw: 'FW：Webサーバが送った問合せへの応答なので、通します。' },
+        receive: 'Webサーバ：自分が送った問合せの応答なので、受け取ります。',
+        wire: { app: 'DNS（応答・約500バイト）', transport: 'UDP', srcPort: '53', dstPort: '52000', srcIp: RESOLVER, dstIp: WEB, focus: ['l7'] },
       },
     ],
     attack: [
@@ -61,6 +104,18 @@ export const ddos = defineScenario({
           ['大きさ', '約60バイト'],
         ],
         note: '攻撃者は、ボットネットの多数の端末から、世界中のオープンリゾルバへ同じような問合せを送ります。攻撃者自身のIPアドレスは表に出ません。',
+        send: '攻撃者：ボットネットの端末から、送信元IPアドレスを被害者（203.0.113.10）に偽装した問合せを送ります。応答が大きくなる種類を選びます。',
+        via: { inet: 'インターネット：ルータは宛先IPアドレスしか見ないので、送信元が偽物でも届けてしまいます。' },
+        receive: 'DNSサーバ：外部からの再帰問合せも受け付ける設定なので（オープンリゾルバ）、問合せに答えます。',
+        wire: {
+          app: 'DNS（問合せ・約60バイト）',
+          transport: 'UDP',
+          srcPort: '52000',
+          dstPort: '53',
+          srcIp: '203.0.113.10（被害者を詐称）',
+          dstIp: RESOLVER,
+          focus: ['l3'],
+        },
       },
       {
         from: 'res',
@@ -73,6 +128,26 @@ export const ddos = defineScenario({
           ['大きさ', '約3,000バイト（約50倍に増幅）'],
         ],
         note: 'DNSサーバは、問合せの送信元だと信じた被害者に応答を返します。被害者は、自分が問い合わせていない応答を受け取ることになります。',
+        send: 'DNSサーバ：問合せの送信元だと信じた 203.0.113.10 へ、約3,000バイトの応答を返します。約60バイトの問合せが、約50倍になりました。',
+        via: {
+          inet: 'インターネット：宛先の 203.0.113.10（被害者）へ届けます。',
+          fw: 'FW：問い合わせていない応答を1つずつ調べるだけで、処理能力が削られていきます。',
+        },
+        receive: 'Webサーバ：身に覚えのない応答が届き始めます。1つ1つは、ふつうのDNSの応答です。',
+        wire: {
+          app: 'DNS（応答・約3,000バイト）',
+          transport: 'UDP',
+          srcPort: '53',
+          dstPort: '52000',
+          srcIp: RESOLVER,
+          dstIp: WEB,
+          focus: ['l7'],
+          remark: '応答の大きさは、問合せの約50倍です（増幅）。',
+        },
+        changes: [
+          { table: 'line', key: '回線の使用率', value: '40%', tone: 'attack' },
+          { table: 'line', key: 'Webサービス', value: '応答が遅くなる', tone: 'attack' },
+        ],
       },
       {
         from: 'res',
@@ -86,6 +161,24 @@ export const ddos = defineScenario({
         ],
         note: '1つ1つは普通のDNSの応答なので、被害者の側で見分けて止めるのは困難です。FWより手前の回線そのものが埋まると、自社の機器では防げません。',
         point: '被害者の側だけでは防ぎきれないのがDDoSの特徴です。ISPやDDoS対策サービスに、上流で遮断してもらいます。',
+        send: '数千のDNSサーバ：ボットネットから届いた偽の問合せに、一斉に答えます。',
+        via: {
+          inet: 'インターネット：被害者の回線へ向かう通信が、合わせて数十Gbps以上に膨らみます。',
+          fw: 'FW：FWの手前の回線そのものが埋まっているので、FWで捨てても間に合いません。',
+        },
+        receive: 'Webサーバ：正規の利用者の通信が届かなくなり、サービスを提供できなくなります（可用性が失われる）。',
+        wire: {
+          app: 'DNS（応答・約3,000バイト）× 大量',
+          transport: 'UDP',
+          srcPort: '53',
+          dstPort: 'さまざま',
+          srcName: '数千のDNSサーバ',
+          dstIp: WEB,
+        },
+        changes: [
+          { table: 'line', key: '回線の使用率', value: '100%（あふれている）', tone: 'attack' },
+          { table: 'line', key: 'Webサービス', value: '停止（正規の利用者がアクセスできない）', tone: 'attack' },
+        ],
       },
     ],
     defense: [
@@ -100,6 +193,18 @@ export const ddos = defineScenario({
           ['応答', 'REFUSED（大きな応答を返さない）'],
         ],
         note: 'DNSサーバの管理者が、外部からの再帰問合せを断る設定にします。自分のサーバが踏み台にされないことが、インターネット全体を守ることにつながります。',
+        send: '攻撃者：送信元を被害者に偽装して、DNSサーバに問い合わせます。',
+        via: { inet: 'インターネット：送信元が偽物でも、宛先へ届けてしまいます。' },
+        receive: 'DNSサーバ：外部からの再帰問合せは受け付けない設定なので、REFUSED だけを返します。大きな応答は返しません。',
+        wire: {
+          app: 'DNS（問合せ・約60バイト）',
+          transport: 'UDP',
+          srcPort: '52000',
+          dstPort: '53',
+          srcIp: '203.0.113.10（被害者を詐称）',
+          dstIp: RESOLVER,
+          focus: ['l3'],
+        },
       },
       {
         from: 'atk',
@@ -112,6 +217,18 @@ export const ddos = defineScenario({
           ['対象', '外部からの問合せを断れない権威DNSサーバ'],
         ],
         note: '権威DNSサーバは、外部からの問合せに答えるのが役目なので断れません。代わりにRRLで応答の数を絞って、踏み台になるのを防ぎます。',
+        send: '攻撃者：外部からの問合せに答える権威DNSサーバを狙って、送信元を偽装した問合せを大量に送ります。',
+        via: { inet: 'インターネット：送信元が偽物でも、宛先へ届けてしまいます。' },
+        receive: 'DNSサーバ：同じ宛先への同じような応答が多すぎるので、RRLで応答を捨てるか、短く切り詰めます。',
+        wire: {
+          app: 'DNS（問合せ）× 大量',
+          transport: 'UDP',
+          srcPort: '52000',
+          dstPort: '53',
+          srcIp: '203.0.113.10（被害者を詐称）',
+          dstIp: RESOLVER,
+        },
+        changes: [{ table: 'res', key: 'RRLで捨てた応答', value: '203.0.113.10 宛ての大量の応答', tone: 'defense' }],
       },
       {
         from: 'res',
@@ -124,6 +241,18 @@ export const ddos = defineScenario({
           ['仕組み', '大容量の設備で受け止め、DNSの大きな応答の急増などを攻撃と判定する'],
         ],
         note: '被害者の回線に届く前に止めるので、回線が埋まりません。',
+        send: 'ほかのDNSサーバ：対策していないDNSサーバが、被害者宛てに大きな応答を大量に返します。',
+        receive: 'ISP（DDoS対策）：大容量の設備で受け止め、DNSの大きな応答の急増を攻撃と判定して、被害者の回線に届く前に捨てます。',
+        wire: {
+          app: 'DNS（応答・約3,000バイト）× 大量',
+          transport: 'UDP',
+          srcPort: '53',
+          dstPort: 'さまざま',
+          srcName: 'ほかのDNSサーバ',
+          dstName: 'Webサーバ（被害者）',
+          dstIp: WEB,
+        },
+        changes: [{ table: 'line', key: '回線の使用率', value: '5%（攻撃の通信は上流で遮断）', tone: 'defense' }],
       },
       {
         from: 'isp',
@@ -136,11 +265,17 @@ export const ddos = defineScenario({
         ],
         note: 'Webサーバは、正規の利用者へのサービスを続けられます。',
         point: '送信元の偽装そのものは、攻撃者側のISPがイングレスフィルタリングで防ぎます。インターネット全体で協力しないと、なくならない攻撃です。',
+        send: 'ISP：攻撃と判定しなかった通信だけを、被害者へ転送します。',
+        via: { fw: 'FW：Webサーバへの443番ポート（HTTPS）の通信なので、通します。' },
+        receive: 'Webサーバ：正規の利用者へのサービスを続けられます。',
+        wire: { app: 'HTTPS（正規の利用者の通信）', transport: 'TCP', srcPort: '50600', dstPort: '443', srcName: '正規の利用者', dstIp: WEB },
+        changes: [{ table: 'line', key: 'Webサービス', value: '正常（サービスを続けられる）', tone: 'defense' }],
       },
     ],
   },
   points: [
     'DNSリフレクション攻撃は、UDPでの送信元IPアドレスの偽装と応答の増幅を組み合わせたDDoS攻撃。NTPやmemcachedなど、UDPのほかのサービスも悪用される',
+    'DDoS攻撃が損なうのは、機密性・完全性・可用性のうちの可用性',
     '踏み台にされないための対策：オープンリゾルバの解消（再帰問合せの制限）、権威DNSサーバでのRRL',
     '送信元の偽装を防ぐ対策：ISPの入口でのイングレスフィルタリング（利用者から届くパケットのうち、割り当てていない送信元IPアドレスを持つものを捨てる）',
     '被害者側の対策：ISPやDDoS対策サービスと連携し、自社の回線より手前で遮断する',

@@ -20,6 +20,7 @@
   --term-bg: #fff1c2;
   --term-line: #b7791f;
   --scrim: rgba(15, 20, 30, 0.45);
+  --scroll-shadow: rgba(23, 32, 51, 0.16);
   --dev-t: #ffffff;
   --dev-l: #dde4ee;
   --dev-r: #bfc9d9;
@@ -33,6 +34,13 @@
   --atk-t: #ffd5d8;
   --atk-l: #ee8e95;
   --atk-r: #cc5b64;
+  /* パケットの層の色 */
+  --ly-l2: #6b7a99;
+  --ly-tunnel: #7a4fb8;
+  --ly-l3: #1f5fbf;
+  --ly-l4: #0f7f86;
+  --ly-sec: #a86a00;
+  --ly-l7: #39465e;
 
   --sans: 'IBM Plex Sans JP', 'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic', system-ui, sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
@@ -59,6 +67,7 @@
     --term-bg: #4a3a12;
     --term-line: #e0b04f;
     --scrim: rgba(0, 0, 0, 0.6);
+    --scroll-shadow: rgba(0, 0, 0, 0.55);
     --dev-t: #3d4a63;
     --dev-l: #2c364b;
     --dev-r: #20283a;
@@ -72,6 +81,12 @@
     --atk-t: #8a3a40;
     --atk-l: #68292f;
     --atk-r: #4f1e23;
+    --ly-l2: #8f9bb5;
+    --ly-tunnel: #b293ec;
+    --ly-l3: #72a4ff;
+    --ly-l4: #4cc4cb;
+    --ly-sec: #e3a83b;
+    --ly-l7: #b8c2d6;
   }
 }
 
@@ -436,24 +451,51 @@ main.wrap {
   display: grid;
   gap: 16px;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: 'topology' 'detail' 'sequence';
+  grid-template-areas: 'topology' 'state' 'detail' 'sequence';
 }
 
 @media (min-width: 880px) {
   .workspace {
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-    grid-template-areas: 'topology detail' 'sequence detail';
+    grid-template-areas: 'topology detail' 'state detail' 'sequence detail';
+    /* 詳細が長いときに、左の図の間が空かないよう、余りは最後の行に回す */
+    grid-template-rows: auto auto 1fr;
     align-items: start;
   }
 
+  /* 詳細は画面に収まる高さにして、本文だけをスクロールさせる（前へ・次へを常に見せる） */
   .detail {
     position: sticky;
     top: 12px;
+    max-height: calc(100vh - 24px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .detail-head,
+  .detail-nav {
+    flex: none;
+  }
+
+  /* 本文がスクロールできるときは、上下の端に影を付けて続きがあることを示す */
+  .detail-body {
+    overflow-y: auto;
+    min-height: 0;
+    background:
+      linear-gradient(var(--panel) 30%, transparent) center top / 100% 28px no-repeat local,
+      linear-gradient(transparent, var(--panel) 70%) center bottom / 100% 28px no-repeat local,
+      radial-gradient(farthest-side at 50% 0, var(--scroll-shadow), transparent) center top / 100% 10px no-repeat scroll,
+      radial-gradient(farthest-side at 50% 100%, var(--scroll-shadow), transparent) center bottom / 100% 10px no-repeat scroll;
+    background-color: var(--panel);
   }
 }
 
 .topology {
   grid-area: topology;
+}
+
+.state {
+  grid-area: state;
 }
 
 .sequence {
@@ -998,33 +1040,6 @@ main.wrap {
   gap: 12px;
 }
 
-.hops {
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-  font-size: 0.76rem;
-  color: var(--muted);
-}
-
-.hops-label {
-  margin-right: 2px;
-}
-
-.hop-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.hop-name {
-  background: var(--soft);
-  border-radius: 4px;
-  padding: 1px 7px;
-  color: var(--fg);
-}
-
 .fields {
   overflow-x: auto;
   border: 1px solid var(--line);
@@ -1066,6 +1081,222 @@ main.wrap {
 .note {
   margin: 0;
   font-size: 0.92rem;
+}
+
+.sub-title {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+
+.sub-title-note {
+  font-weight: 400;
+  font-size: 0.72rem;
+}
+
+/* このステップで起きていること */
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.tl-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+/* 区切りどうしをつなぐ線 */
+.tl-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 20px;
+  top: 32px;
+  bottom: -8px;
+  width: 2px;
+  background: var(--line);
+}
+
+.tl-mark {
+  position: relative;
+  z-index: 1;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  font-weight: 500;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.tl-mark:hover {
+  border-color: var(--accent);
+}
+
+.tl-text {
+  margin: 0;
+  padding-top: 2px;
+  font-size: 0.86rem;
+  line-height: 1.65;
+}
+
+.tl-who {
+  display: block;
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
+.tl-item.todo .tl-text {
+  color: var(--muted);
+}
+
+.tl-item.done .tl-mark {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.tl-item.now {
+  background: var(--point-bg);
+}
+
+.tl-item.now .tl-mark {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.tl-item.now.k-blocked {
+  background: var(--atk-bg);
+}
+
+.tl-item.now.k-blocked .tl-mark {
+  background: var(--atk);
+  border-color: var(--atk);
+}
+
+.tl-item.k-blocked .tl-who {
+  color: var(--atk);
+}
+
+/* パケットの中身：層ごとの入れ子の箱 */
+.packet-section {
+  min-width: 0;
+}
+
+.layers {
+  font-size: 0.8rem;
+}
+
+.layer {
+  --ly: var(--ly-l7);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--ly);
+  border-radius: 6px;
+  padding: 5px 6px 6px 8px;
+  background: color-mix(in srgb, var(--ly) 5%, var(--panel));
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.layer .layer {
+  margin-top: 2px;
+}
+
+.layer.l-l2 {
+  --ly: var(--ly-l2);
+}
+
+.layer.l-tunnel {
+  --ly: var(--ly-tunnel);
+}
+
+.layer.l-l3 {
+  --ly: var(--ly-l3);
+}
+
+.layer.l-l4 {
+  --ly: var(--ly-l4);
+}
+
+.layer.l-sec {
+  --ly: var(--ly-sec);
+}
+
+.layer.focus {
+  border-color: var(--ly);
+  box-shadow: 0 0 0 1px var(--ly);
+}
+
+.layer-head {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  line-height: 1.5;
+}
+
+.layer-name {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--ly);
+}
+
+.layer-tag {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.layer-focus {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--panel);
+  background: var(--ly);
+  border-radius: 4px;
+  padding: 0 5px;
+}
+
+.layer-addr {
+  flex-basis: 100%;
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.layer .fields {
+  background: var(--panel);
+}
+
+.layer-remark {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.layer-remark::before {
+  content: '※ ';
 }
 
 .point {
@@ -1123,6 +1354,224 @@ main.wrap {
   font-size: 0.8rem;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* 構成図の下：再生の操作と、今どこで何が起きているか */
+.player {
+  display: grid;
+  gap: 8px;
+  padding: 8px 8px 0;
+}
+
+.player-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.play-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  border-radius: 999px;
+  padding: 5px 14px 5px 11px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.icon .fill {
+  fill: currentColor;
+}
+
+.icon .stroke {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.speeds {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.speeds button {
+  border: 0;
+  background: transparent;
+  padding: 4px 11px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.speeds button + button {
+  border-left: 1px solid var(--line);
+}
+
+.speeds button[aria-pressed='true'] {
+  background: var(--soft);
+  color: var(--fg);
+  font-weight: 700;
+}
+
+.sub-count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.caption {
+  margin: 0;
+  padding: 8px 12px;
+  min-height: 4.6em;
+  border-radius: 8px;
+  border-left: 3px solid var(--accent);
+  background: var(--soft);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.caption.k-attack,
+.caption.k-blocked {
+  border-left-color: var(--atk);
+}
+
+.caption.k-defense {
+  border-left-color: var(--ok);
+}
+
+.caption.k-discarded {
+  border-left-color: var(--gray);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 機器の中の状態 */
+.state {
+  padding: 10px;
+}
+
+.state .panel-label {
+  padding: 0 2px 6px;
+}
+
+.state-tables {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+
+.state-table {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.state-table h3 {
+  margin: 0;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  background: var(--soft);
+  border-bottom: 1px solid var(--line);
+}
+
+.state-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.state-table th,
+.state-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.state-table thead th {
+  font-weight: 500;
+  font-size: 0.7rem;
+  color: var(--muted);
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+.state-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.state-table tbody th {
+  font-weight: 500;
+  width: 42%;
+}
+
+.state-table td {
+  font-family: var(--mono);
+}
+
+.state-table tr.t-attack td {
+  color: var(--atk);
+  font-weight: 500;
+}
+
+.state-table tr.t-defense td {
+  color: var(--ok);
+  font-weight: 500;
+}
+
+.state-table tr.changed > * {
+  background: var(--term-bg);
+  animation: flash 1.2s ease-out;
+}
+
+.changed-tag {
+  margin-left: 6px;
+  font-family: var(--sans);
+  font-size: 0.64rem;
+  font-weight: 700;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--term-line);
+  color: var(--panel);
+  white-space: nowrap;
+}
+
+.state-empty {
+  color: var(--muted);
+}
+
+@keyframes flash {
+  from {
+    background: var(--term-line);
+  }
 }
 
 .points {

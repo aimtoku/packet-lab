@@ -2,6 +2,19 @@ import { defineScenario } from '../types'
 
 // テレワーク（IPsec VPN）：認証情報の悪用による侵入
 // 図中のIPアドレスとドメイン（example.*）は、説明用・プライベート用に予約されたもので、実在のサーバを指しません。
+//
+// VPN装置 203.0.113.1、ファイルサーバ 192.168.1.20、攻撃者 198.51.100.66。
+// VPNで割り当てる社内用のアドレスは 192.168.100.0/24。
+// テレワーク端末の送信元アドレスは、公衆Wi-Fiの中で変換されるので、名前だけで表しています。
+const VPN = '203.0.113.1'
+const FS = '192.168.1.20'
+const ATTACKER = '198.51.100.66'
+
+/** ファイルサーバの、攻撃を受ける前の状態 */
+const HEALTHY = [['共有フォルダ', '正常']] as const
+
+const ESP_TUNNEL = { name: 'ESP', dstName: 'VPN装置', dstIp: VPN, transport: 'UDP', srcPort: '4500', dstPort: '4500' } as const
+
 export const vpn = defineScenario({
   id: 'vpn',
   name: 'テレワーク（IPsec VPN）',
@@ -17,6 +30,24 @@ export const vpn = defineScenario({
     attack: '攻撃者が、フィッシングやほかのサービスからの流出で手に入れたID・パスワードでVPNに接続し、社内に侵入します。VPN装置は、ランサムウェアの代表的な侵入口です。',
     defense: '認証にクライアント証明書や多要素認証を加え、ID・パスワードだけでは接続できないようにします。VPN装置の脆弱性も、すぐに修正します。',
   },
+  states: [
+    {
+      id: 'vpn',
+      title: 'VPN装置の記録',
+      columns: ['項目', '内容'],
+      initial: {
+        normal: [['認証の方式', 'クライアント証明書']],
+        attack: [['認証の方式', 'ID・パスワードだけ']],
+        defense: [['認証の方式', 'クライアント証明書＋多要素認証']],
+      },
+    },
+    {
+      id: 'fs',
+      title: 'ファイルサーバ',
+      columns: ['項目', '状態'],
+      initial: { normal: HEALTHY, attack: HEALTHY, defense: HEALTHY },
+    },
+  ],
   steps: {
     normal: [
       {
@@ -32,6 +63,9 @@ export const vpn = defineScenario({
           ['Ni', '乱数（ノンス）'],
         ],
         note: '最初のやりとりで使う暗号方式を決め、Diffie-Hellman 鍵交換の材料を送り合います。この時点では、まだ相手を認証していません。',
+        send: 'テレワーク端末：使える暗号方式の候補と、Diffie-Hellman 鍵交換の公開値を送ります。',
+        receive: 'VPN装置：UDPの500番ポートで待ち受けているIKEの通信を受け取り、暗号方式を1つ選んで、自分の公開値を用意します。',
+        wire: { app: 'IKEv2（IKE_SA_INIT）', transport: 'UDP', srcPort: '500', dstPort: '500', dstIp: VPN, focus: ['l4'] },
       },
       {
         from: 'gw',
@@ -46,6 +80,10 @@ export const vpn = defineScenario({
           ['NAT検出', '途中にNATがあれば、以降は UDP/4500 を使う（NATトラバーサル）'],
         ],
         note: '双方で同じ鍵を計算し、IKE SA（IKE自身のやりとりを守る、暗号化された通り道）ができます。',
+        send: 'VPN装置：選んだ暗号方式と、自分の公開値を返します。途中にNATがあることも検出します。',
+        receive: 'テレワーク端末：互いの公開値から同じ鍵を計算し、IKE SAができます。以降のIKEのやりとりは暗号化されます。',
+        wire: { app: 'IKEv2（IKE_SA_INIT 応答）', transport: 'UDP', srcPort: '500', dstPort: '500', srcIp: VPN },
+        changes: [{ table: 'vpn', key: 'IKE SA', value: '確立（鍵を共有した）', at: 'fw' }],
       },
       {
         from: 'pc',
@@ -60,6 +98,19 @@ export const vpn = defineScenario({
           ['SA', 'ESP で使う暗号方式の提案'],
         ],
         note: '認証の情報は、1つ前のステップでできた鍵で暗号化して送ります。VPN装置は端末を確かめ、端末もVPN装置の証明書を確かめます。',
+        send: 'テレワーク端末：クライアント証明書と、秘密鍵による署名を、IKE SAの鍵で暗号化して送ります。',
+        receive: 'VPN装置：証明書と署名を検証し、正規の端末だと確認します。',
+        wire: {
+          app: 'IKEv2（IKE_AUTH）',
+          transport: 'UDP',
+          srcPort: '4500',
+          dstPort: '4500',
+          dstIp: VPN,
+          secure: 'IKE SAの鍵で暗号化',
+          focus: ['l4', 'sec'],
+          remark: '途中にNATがあるので、ここからはUDPの4500番ポートを使います（NATトラバーサル）。',
+        },
+        changes: [{ table: 'vpn', key: '認証', value: '成功（クライアント証明書で確認）' }],
       },
       {
         from: 'gw',
@@ -73,6 +124,10 @@ export const vpn = defineScenario({
           ['Child SA', 'ESP の暗号鍵と、トンネルに通す通信の範囲'],
         ],
         note: 'これで、データを運ぶための IPsec SA（Child SA）ができます。',
+        send: 'VPN装置：自分の証明書による署名と、社内用のIPアドレス 192.168.100.25 を返します。',
+        receive: 'テレワーク端末：VPN装置の証明書を検証します。ESPで使う鍵（Child SA）ができ、トンネルの準備が整います。',
+        wire: { app: 'IKEv2（IKE_AUTH 応答）', transport: 'UDP', srcPort: '4500', dstPort: '4500', srcIp: VPN, secure: 'IKE SAの鍵で暗号化' },
+        changes: [{ table: 'vpn', key: '割り当てたIP', value: '192.168.100.25（テレワーク端末）', at: 'fw' }],
       },
       {
         from: 'pc',
@@ -87,6 +142,23 @@ export const vpn = defineScenario({
         ],
         note: 'トンネルモードでは、元のIPパケット全体を暗号化し、新しいIPヘッダを付けて送ります。VPN装置が復号して、社内のファイルサーバへ転送します。',
         point: 'ESP は暗号化と完全性の保護を行います。AH は完全性の保護（改ざん検知）だけで、暗号化はしません。',
+        send: 'テレワーク端末：ファイルサーバ宛てのIPパケットを丸ごと暗号化し、VPN装置宛ての新しいIPヘッダを付けて送ります。',
+        via: {
+          ap: '公衆AP：中継しますが、中身は暗号化されているので、宛先がファイルサーバだということも分かりません。',
+          fw: 'VPN装置：ESPを復号して、中から元のIPパケット（192.168.100.25 → 192.168.1.20）を取り出し、社内へ転送します。',
+        },
+        receive: 'ファイルサーバ：社内の端末（192.168.100.25）からの通信として受け取ります。',
+        wire: {
+          app: 'SMB（ファイル共有）',
+          transport: 'TCP',
+          srcPort: '50700',
+          dstPort: '445',
+          srcIp: '192.168.100.25',
+          dstIp: FS,
+          tunnel: ESP_TUNNEL,
+          focus: ['tunnel'],
+          remark: 'インターネットを流れる間は、外側のIPヘッダとESPのヘッダしか見えません。',
+        },
       },
     ],
     attack: [
@@ -101,6 +173,20 @@ export const vpn = defineScenario({
           ['認証の方式', 'ID・パスワードだけ'],
         ],
         note: 'VPN装置がID・パスワードだけで認証していると、正しい組合せを知っている攻撃者は、本人と区別がつきません。',
+        send: '攻撃者：フィッシングなどで手に入れた社員のID・パスワードで、VPNへの接続を始めます。',
+        via: { inet: 'インターネット：ふつうの通信と同じように届けます。' },
+        receive: 'VPN装置：ID・パスワードが正しいので、本人だと判断してしまいます。',
+        wire: {
+          app: 'IKEv2（IKE_AUTH・ID・パスワード）',
+          transport: 'UDP',
+          srcPort: '4500',
+          dstPort: '4500',
+          srcIp: ATTACKER,
+          dstIp: VPN,
+          secure: 'IKE SAの鍵で暗号化',
+          remark: 'IKE_SA_INIT による鍵の交換は、正規の端末と同じように済ませています。',
+        },
+        changes: [{ table: 'vpn', key: '認証', value: '成功（盗まれたID・パスワード）', tone: 'attack' }],
       },
       {
         from: 'gw',
@@ -113,6 +199,13 @@ export const vpn = defineScenario({
           ['ログ', '正規の利用者のログインとして記録される'],
         ],
         note: 'ここから先、攻撃者は社内の端末と同じようにふるまえます。',
+        send: 'VPN装置：社内用のIPアドレス 192.168.100.31 を割り当てます。ログには、社員本人のログインとして記録されます。',
+        receive: '攻撃者：社内の端末と同じように、社内のサーバへ通信できるようになります。',
+        wire: { app: 'IKEv2（IKE_AUTH 応答）', transport: 'UDP', srcPort: '4500', dstPort: '4500', srcIp: VPN, dstIp: ATTACKER, secure: 'IKE SAの鍵で暗号化' },
+        changes: [
+          { table: 'vpn', key: '割り当てたIP', value: '192.168.100.31（攻撃者）', tone: 'attack', at: 'fw' },
+          { table: 'vpn', key: 'ログ', value: '社員本人のログインとして記録', tone: 'attack', at: 'fw' },
+        ],
       },
       {
         from: 'atk',
@@ -126,6 +219,19 @@ export const vpn = defineScenario({
         ],
         note: 'VPNの内側は信頼される前提になっていることが多く、一度入られると被害が広がります。',
         point: 'VPN装置は、認証情報の悪用のほか、装置自体の脆弱性を突かれて侵入される例も多くあります。修正の適用が遅れると、認証なしで侵入されることもあります。',
+        send: '攻撃者：VPNのトンネルを通って、社内のサーバを探し回ります。',
+        via: { fw: 'VPN装置：正規の利用者のトンネルとして、ESPを復号して社内へ転送します。' },
+        receive: 'ファイルサーバ：データを持ち出されたうえで暗号化され、身代金を要求されます（ランサムウェア）。',
+        wire: {
+          app: 'SMB（ファイル共有）',
+          transport: 'TCP',
+          srcPort: '50800',
+          dstPort: '445',
+          srcIp: '192.168.100.31',
+          dstIp: FS,
+          tunnel: { ...ESP_TUNNEL, srcIp: ATTACKER },
+        },
+        changes: [{ table: 'fs', key: '共有フォルダ', value: '持ち出されたうえで暗号化された', tone: 'attack' }],
       },
     ],
     defense: [
@@ -141,6 +247,19 @@ export const vpn = defineScenario({
           ['ログ', '失敗を記録し、繰り返されたら管理者に通知'],
         ],
         note: 'ID・パスワードが漏れても、会社が証明書を入れた端末と、本人のスマートフォンがなければ接続できません。',
+        send: '攻撃者：盗んだID・パスワードで、VPNに接続しようとします。',
+        via: { inet: 'インターネット：ふつうの通信と同じように届けます。' },
+        receive: 'VPN装置：クライアント証明書による署名がなく、本人のスマートフォンでの承認もないので、認証を失敗させます。失敗はログに残します。',
+        wire: {
+          app: 'IKEv2（IKE_AUTH・ID・パスワード）',
+          transport: 'UDP',
+          srcPort: '4500',
+          dstPort: '4500',
+          srcIp: ATTACKER,
+          dstIp: VPN,
+          secure: 'IKE SAの鍵で暗号化',
+        },
+        changes: [{ table: 'vpn', key: '認証の失敗', value: '198.51.100.66 から（証明書なし）→ 管理者に通知', tone: 'defense' }],
       },
       {
         from: 'pc',
@@ -153,6 +272,17 @@ export const vpn = defineScenario({
           ['多要素認証', '本人のスマートフォンで承認'],
         ],
         note: '秘密鍵は、端末から取り出せない場所（TPMなど）に保存しておくと、より安全です。',
+        send: 'テレワーク端末：TPMに保存した秘密鍵で署名し、クライアント証明書と一緒に送ります。本人はスマートフォンで承認します。',
+        receive: 'VPN装置：証明書と署名を検証し、多要素認証の承認も確かめたので、認証を成功させます。',
+        wire: {
+          app: 'IKEv2（IKE_AUTH・証明書）',
+          transport: 'UDP',
+          srcPort: '4500',
+          dstPort: '4500',
+          dstIp: VPN,
+          secure: 'IKE SAの鍵で暗号化',
+        },
+        changes: [{ table: 'vpn', key: '認証', value: '成功（証明書＋多要素認証）', tone: 'defense' }],
       },
       {
         from: 'gw',
@@ -165,6 +295,10 @@ export const vpn = defineScenario({
           ['修正', 'VPN装置のファームウェアを最新に保つ'],
         ],
         note: 'VPNの内側でもアクセスできる範囲を絞っておけば、万一侵入されても被害を限定できます（ゼロトラストの考え方）。',
+        send: 'VPN装置：社内用のIPアドレスを割り当て、通してよいサーバとポートを、業務に必要なものだけに絞ります。',
+        receive: 'テレワーク端末：許可された範囲のサーバにだけ、アクセスできるようになります。',
+        wire: { app: 'IKEv2（IKE_AUTH 応答）', transport: 'UDP', srcPort: '4500', dstPort: '4500', srcIp: VPN, secure: 'IKE SAの鍵で暗号化' },
+        changes: [{ table: 'vpn', key: '割り当てたIP', value: '192.168.100.25（アクセスできる範囲を限定）', tone: 'defense', at: 'fw' }],
       },
     ],
   },

@@ -3,6 +3,12 @@ import { defineScenario } from '../types'
 // Webセッション：CSRF
 // 図中のIPアドレス（192.0.2.0/24、198.51.100.0/24、203.0.113.0/24）とドメイン（example.*）は、
 // 説明用に予約されたもので、実在のサーバを指しません。
+//
+// 正規サイト（bank.example）203.0.113.80、罠サイト（evil.example）198.51.100.80。
+// 通信はすべてHTTPS（TLS）です。PCの送信元アドレスは、FWで変換されるので名前だけで表しています。
+const BANK = '203.0.113.80'
+const EVIL = '198.51.100.80'
+
 export const web = defineScenario({
   id: 'web',
   name: 'Webセッション',
@@ -30,6 +36,35 @@ export const web = defineScenario({
     attack: 'ログイン中の利用者に攻撃者サイトを開かせ、利用者の意図しない送金リクエストを送らせます（CSRF）。',
     defense: 'SameSite属性とCSRFトークンで、他サイト起点のリクエストを拒否します。',
   },
+  states: [
+    {
+      id: 'cookie',
+      title: 'ブラウザのCookie（bank.example）',
+      columns: ['名前', '値と属性'],
+      initial: {
+        attack: [['SID', '8f2a…（Secure、SameSite=None）']],
+        defense: [['SID', '8f2a…（Secure、HttpOnly、SameSite=Lax）']],
+      },
+    },
+    {
+      id: 'server',
+      title: '正規サイトの記録',
+      columns: ['項目', '内容'],
+      initial: {
+        normal: [['口座残高', '1,000,000円']],
+        attack: [
+          ['セッション', 'SID=8f2a…（sato がログイン中）'],
+          ['CSRFトークン', '使っていない'],
+          ['口座残高', '1,000,000円'],
+        ],
+        defense: [
+          ['セッション', 'SID=8f2a…（sato がログイン中）'],
+          ['CSRFトークン', 'b7c1e9…（SIDと対応）'],
+          ['口座残高', '1,000,000円'],
+        ],
+      },
+    },
+  ],
   steps: {
     normal: [
       {
@@ -43,6 +78,10 @@ export const web = defineScenario({
           ['通信', 'HTTPS'],
         ],
         note: '利用者がIDとパスワードでログインします。',
+        send: 'ブラウザ：IDとパスワードを、HTTPS（TLS）で暗号化して送ります。',
+        via: { fw: 'FW：社内から外部のWebサイトへのHTTPS（443番ポート）は許可されているので、通します。' },
+        receive: '正規サイト：IDとパスワードを確かめて、ログインを受け付けます。',
+        wire: { app: 'HTTP（POST /login）', transport: 'TCP', srcPort: '50300', dstPort: '443', dstIp: BANK, secure: 'TLS' },
       },
       {
         from: 'sv',
@@ -56,6 +95,14 @@ export const web = defineScenario({
         ],
         note: 'ログイン成功時にセッションIDを発行し直すのは、セッション固定攻撃への対策です。',
         point: 'Secure：HTTPSのときだけ送る。HttpOnly：JavaScriptから読めない（XSSによる窃取対策）。SameSite：他サイト起点のリクエストに付けない。',
+        send: '正規サイト：推測できないセッションIDを新しく発行して記録し、Set-Cookieヘッダで渡します。',
+        via: { fw: 'FW：社内から始まった通信への応答なので、通します。' },
+        receive: 'ブラウザ：Cookieを bank.example 用として保存します。以後、bank.example へのリクエストには自動で付けます。',
+        wire: { app: 'HTTP（200 OK＋Set-Cookie）', transport: 'TCP', srcPort: '443', dstPort: '50300', srcIp: BANK, secure: 'TLS', focus: ['l7'] },
+        changes: [
+          { table: 'server', key: 'セッション', value: 'SID=8f2a…（sato がログイン中）', at: 'ext1' },
+          { table: 'cookie', key: 'SID', value: '8f2a…（Secure、HttpOnly、SameSite=Lax）' },
+        ],
       },
       {
         from: 'sv',
@@ -67,6 +114,11 @@ export const web = defineScenario({
           ['hidden項目', 'csrf_token=b7c1e9…（セッションと紐付く乱数）'],
         ],
         note: 'サーバは推測できない値をフォームに埋め込み、セッションと対応付けて保存します。',
+        send: '正規サイト：推測できない乱数（CSRFトークン）を作ってセッションと結び付け、送金フォームのhidden項目に埋め込みます。',
+        via: { fw: 'FW：応答なので、通します。' },
+        receive: 'ブラウザ：送金フォームを表示します。トークンは画面には見えませんが、フォームの中に入っています。',
+        wire: { app: 'HTTP（送金フォームのHTML）', transport: 'TCP', srcPort: '443', dstPort: '50300', srcIp: BANK, secure: 'TLS' },
+        changes: [{ table: 'server', key: 'CSRFトークン', value: 'b7c1e9…（SIDと対応）', at: 'ext1' }],
       },
       {
         from: 'br',
@@ -80,6 +132,11 @@ export const web = defineScenario({
           ['検証', 'トークン一致 → 実行'],
         ],
         note: 'セッションとトークンの両方が正しいので、送金が実行されます。',
+        send: 'ブラウザ：利用者が送金ボタンを押すと、Cookie（SID）とフォームのトークンを付けて送ります。',
+        via: { fw: 'FW：HTTPSの通信なので、通します。' },
+        receive: '正規サイト：セッションが有効で、トークンもセッションと対応しているので、送金を実行します。',
+        wire: { app: 'HTTP（POST /transfer）', transport: 'TCP', srcPort: '50301', dstPort: '443', dstIp: BANK, secure: 'TLS', focus: ['l7'] },
+        changes: [{ table: 'server', key: '口座残高', value: '990,000円（12345 へ 10,000円を送金）' }],
       },
     ],
     attack: [
@@ -94,6 +151,10 @@ export const web = defineScenario({
           ['トークン', '送金フォームに使っていない'],
         ],
         note: '利用者はログアウトせず、別のタブで他のサイトを見ています。このサイトはCSRF対策をしていません。',
+        send: 'ブラウザ：ログインしたまま、マイページを開いています。Cookie（SID）が自動で付きます。',
+        via: { fw: 'FW：HTTPSの通信なので、通します。' },
+        receive: '正規サイト：セッションが有効なので、ログイン中として扱います。',
+        wire: { app: 'HTTP（GET /mypage）', transport: 'TCP', srcPort: '50300', dstPort: '443', dstIp: BANK, secure: 'TLS' },
       },
       {
         from: 'br',
@@ -105,6 +166,10 @@ export const web = defineScenario({
           ['きっかけ', 'メールやSNSのリンク'],
         ],
         note: '利用者は普通のページだと思ってリンクを開きます。',
+        send: 'ブラウザ：利用者がメールやSNSのリンクから、罠サイトを開きます。',
+        via: { fw: 'FW：ふつうのWebサイトへのアクセスと区別がつかないので、通します。' },
+        receive: '罠サイト：自動で送金リクエストを送らせるページを返す準備をします。',
+        wire: { app: 'HTTP（GET /）', transport: 'TCP', srcPort: '50310', dstPort: '443', dstIp: EVIL, secure: 'TLS' },
       },
       {
         from: 'evil',
@@ -118,6 +183,10 @@ export const web = defineScenario({
           ['script', '表示と同時に自動でsubmit'],
         ],
         note: '見た目は普通のページでも、裏でフォームが自動送信されます。',
+        send: '罠サイト：bank.example の送金先へ自動でPOSTするフォームを含んだHTMLを返します。',
+        via: { fw: 'FW：社内から開いたページへの応答なので、通します。' },
+        receive: 'ブラウザ：ページを表示すると同時に、スクリプトがフォームを送信します。利用者には見えません。',
+        wire: { app: 'HTTP（罠のHTML）', transport: 'TCP', srcPort: '443', dstPort: '50310', srcIp: EVIL, secure: 'TLS', focus: ['l7'] },
       },
       {
         from: 'br',
@@ -131,6 +200,10 @@ export const web = defineScenario({
           ['Origin', 'https://evil.example'],
         ],
         note: 'ブラウザは宛先サイトのCookieを自動で付けるので、サーバからは本人の正規のリクエストに見えます。',
+        send: 'ブラウザ：宛先が bank.example なので、保存してあるCookie（SID）を自動で付けて送ってしまいます（SameSite=None のため）。',
+        via: { fw: 'FW：HTTPSの通信なので、通します。' },
+        receive: '正規サイト：有効なセッションIDが付いているので、本人の操作だと判断します。トークンもOriginも確かめていません。',
+        wire: { app: 'HTTP（POST /transfer）', transport: 'TCP', srcPort: '50311', dstPort: '443', dstIp: BANK, secure: 'TLS', focus: ['l7'] },
       },
       {
         from: 'sv',
@@ -143,6 +216,11 @@ export const web = defineScenario({
         ],
         note: '利用者は送金した覚えがありません。',
         point: 'CSRFは「セッションを盗む」攻撃ではなく、「正規のセッションのまま、利用者の意図しない操作をさせる」攻撃です。XSSやセッションハイジャックとの違いとして問われます。',
+        send: '正規サイト：送金を実行し、完了の画面を返します。',
+        via: { fw: 'FW：応答なので、通します。' },
+        receive: 'ブラウザ：応答は罠ページの裏で受け取るので、利用者は気付きません。',
+        wire: { app: 'HTTP（200 OK）', transport: 'TCP', srcPort: '443', dstPort: '50311', srcIp: BANK, secure: 'TLS' },
+        changes: [{ table: 'server', key: '口座残高', value: '500,000円（99999 へ 500,000円を送金）', tone: 'attack', at: 'ext1' }],
       },
     ],
     defense: [
@@ -156,6 +234,10 @@ export const web = defineScenario({
           ['きっかけ', 'メールやSNSのリンク'],
         ],
         note: '利用者が罠ページを開くところまでは同じです。',
+        send: 'ブラウザ：利用者がリンクから、罠サイトを開きます。',
+        via: { fw: 'FW：ふつうのWebサイトへのアクセスと区別がつかないので、通します。' },
+        receive: '罠サイト：自動で送金リクエストを送らせるページを返す準備をします。',
+        wire: { app: 'HTTP（GET /）', transport: 'TCP', srcPort: '50310', dstPort: '443', dstIp: EVIL, secure: 'TLS' },
       },
       {
         from: 'evil',
@@ -168,6 +250,10 @@ export const web = defineScenario({
           ['csrf_token', 'なし（攻撃者は値を知らない）'],
         ],
         note: '攻撃者は利用者のトークンを知る手段がありません。',
+        send: '罠サイト：自動送信フォームを返します。攻撃者は利用者のトークンを知らないので、フォームにトークンは入っていません。',
+        via: { fw: 'FW：応答なので、通します。' },
+        receive: 'ブラウザ：ページを表示すると同時に、フォームが自動で送信されます。',
+        wire: { app: 'HTTP（罠のHTML）', transport: 'TCP', srcPort: '443', dstPort: '50310', srcIp: EVIL, secure: 'TLS' },
       },
       {
         from: 'br',
@@ -181,6 +267,11 @@ export const web = defineScenario({
           ['応答', '403 Forbidden'],
         ],
         note: 'SameSite属性によりCookie自体が送られず、仮に送られてもトークンが一致しないので処理されません。',
+        send: 'ブラウザ：他サイト（evil.example）のページから始まったPOSTなので、SameSite=Lax のCookieは付けずに送ります。',
+        via: { fw: 'FW：HTTPSの通信なので、通します。' },
+        receive: '正規サイト：セッションIDもトークンもないので、本人の操作と確認できません。処理せずに 403 で拒否します。',
+        wire: { app: 'HTTP（POST /transfer）', transport: 'TCP', srcPort: '50311', dstPort: '443', dstIp: BANK, secure: 'TLS', focus: ['l7'] },
+        changes: [{ table: 'server', key: '拒否したリクエスト', value: 'POST /transfer（Cookie・トークンなし）→ 403', tone: 'defense' }],
       },
       {
         from: 'br',
@@ -193,6 +284,11 @@ export const web = defineScenario({
           ['結果', 'トークン一致 → 実行'],
         ],
         note: '重要な操作の前にパスワードを再入力させる方法も有効です。',
+        send: 'ブラウザ：利用者が正規サイトのフォームから送金すると、同じサイトからのPOSTなのでCookieが付き、トークンも入っています。',
+        via: { fw: 'FW：HTTPSの通信なので、通します。' },
+        receive: '正規サイト：セッションもトークンも正しいので、送金を実行します。',
+        wire: { app: 'HTTP（POST /transfer）', transport: 'TCP', srcPort: '50320', dstPort: '443', dstIp: BANK, secure: 'TLS' },
+        changes: [{ table: 'server', key: '口座残高', value: '990,000円（本人の送金だけ）', tone: 'defense' }],
       },
     ],
   },

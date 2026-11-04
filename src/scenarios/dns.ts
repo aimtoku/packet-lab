@@ -1,8 +1,17 @@
 import { defineScenario } from '../types'
 
 // DNS名前解決：キャッシュポイズニング
-// 図中のIPアドレス（192.0.2.0/24、198.51.100.0/24、203.0.113.0/24）とドメイン（example.*）は、
-// 説明用に予約されたもので、実在のサーバを指しません。
+// 図中のIPアドレス（192.0.2.0/24、198.51.100.0/24、203.0.113.0/24、192.168.0.0/16）とドメイン（example.*）は、
+// 説明用・プライベート用に予約されたもので、実在のサーバを指しません。
+//
+// アドレスの割り当て
+//   PC 192.168.1.10、キャッシュDNS 192.168.1.53、権威DNS（example.net）192.0.2.53、攻撃者 198.51.100.66
+//   www.example.net の正しいアドレス 203.0.113.10、攻撃者が用意した偽のサーバ 198.51.100.80
+const PC = '192.168.1.10'
+const CACHE = '192.168.1.53'
+const AUTH = '192.0.2.53'
+const ATTACKER = '198.51.100.66'
+
 export const dns = defineScenario({
   id: 'dns',
   name: 'DNS名前解決',
@@ -35,6 +44,11 @@ export const dns = defineScenario({
     attack: '攻撃者が権威DNSになりすまして偽の応答を先に送り込み、キャッシュDNSに偽のIPアドレスを覚えさせます（カミンスキー型）。',
     defense: '再帰問合せの送信元制限、送信元ポートのランダム化、DNSSECの署名検証で偽の応答を受理しません。',
   },
+  states: [
+    { id: 'pending', title: 'キャッシュDNSが待っている応答', columns: ['項目', '内容'] },
+    { id: 'cache', title: 'キャッシュDNSのキャッシュ', columns: ['名前', '記録した内容'] },
+    { id: 'pc', title: 'PCが接続する先', columns: ['名前', 'IPアドレス'] },
+  ],
   steps: {
     normal: [
       {
@@ -51,6 +65,9 @@ export const dns = defineScenario({
           ['RDフラグ', '1（再帰を要求）'],
         ],
         note: 'PCのスタブリゾルバは自分では解決せず、キャッシュDNSサーバに「最後まで調べてほしい」と再帰問合せを送ります。',
+        send: 'PC：www.example.net のIPアドレスを知るため、問合せID 0x1a2b を付けて、キャッシュDNSへ再帰問合せを送ります。',
+        receive: 'キャッシュDNS：社内からの再帰問合せなので受け付けます。自分のキャッシュを探しますが、www.example.net はまだ記録されていません。',
+        wire: { app: 'DNS（問合せ）', transport: 'UDP', srcPort: '50123', dstPort: '53', srcIp: PC, dstIp: CACHE, focus: ['l7'] },
       },
       {
         from: 'cache',
@@ -65,6 +82,16 @@ export const dns = defineScenario({
           ['RDフラグ', '0'],
         ],
         note: 'キャッシュにない名前は、ルート → .net → example.net の順に権威DNSサーバへ反復問合せします。図では最後の権威DNSだけを表示しています。',
+        send: 'キャッシュDNS：問合せIDと送信元ポートを決めて、「どの応答を待っているか」を記録してから、権威DNSへ問い合わせます。',
+        via: { fw: 'FW：社内のキャッシュDNSから外部のDNSサーバへの問合せは許可されているので、通します。' },
+        receive: '権威DNS：example.net の情報を管理しているので、www.example.net のAレコードを答える準備をします。',
+        wire: { app: 'DNS（問合せ）', transport: 'UDP', srcPort: '49733', dstPort: '53', dstIp: AUTH, focus: ['l4', 'l7'] },
+        changes: [
+          { table: 'pending', key: 'ID', value: '0x7c31', at: 'cache' },
+          { table: 'pending', key: '待ち受けポート', value: '49733', at: 'cache' },
+          { table: 'pending', key: '質問', value: 'www.example.net A', at: 'cache' },
+          { table: 'pending', key: '状態', value: '応答待ち', at: 'cache' },
+        ],
       },
       {
         from: 'auth',
@@ -80,6 +107,14 @@ export const dns = defineScenario({
         ],
         note: 'キャッシュDNSは、問合せと同じID・宛先ポート・質問名をもつ応答だけを受理し、TTLの間キャッシュに保存します。',
         point: '受理の条件が「IDとポートが一致すること」だけである点が、キャッシュポイズニングの前提になります。',
+        send: '権威DNS：問合せと同じID 0x7c31 を付けて、問合せの送信元ポート（49733）宛てに答えを返します。',
+        via: { fw: 'FW：社内から出ていった問合せへの応答なので、通します。' },
+        receive: 'キャッシュDNS：待っている応答と、ID・ポート・質問名が一致したので受理します。答えをTTLの3600秒の間、キャッシュに保存します。',
+        wire: { app: 'DNS（応答）', transport: 'UDP', srcPort: '53', dstPort: '49733', srcIp: AUTH, focus: ['l4', 'l7'] },
+        changes: [
+          { table: 'pending', key: '状態', value: '受理（ID・ポートが一致）→ 待ち受け終了' },
+          { table: 'cache', key: 'www.example.net', value: 'A 203.0.113.10（TTL 3600秒）' },
+        ],
       },
       {
         from: 'cache',
@@ -93,6 +128,10 @@ export const dns = defineScenario({
           ['RAフラグ', '1（再帰可能）'],
         ],
         note: 'PCは得たIPアドレスへ接続します。TTLが切れるまで、同じ名前の問合せはキャッシュから即答されます。',
+        send: 'キャッシュDNS：PCの問合せID 0x1a2b を付けて、答え（203.0.113.10）を返します。',
+        receive: 'PC：www.example.net は 203.0.113.10 だと分かったので、このアドレスへ接続します。',
+        wire: { app: 'DNS（応答）', transport: 'UDP', srcPort: '53', dstPort: '50123', srcIp: CACHE, dstIp: PC },
+        changes: [{ table: 'pc', key: 'www.example.net', value: '203.0.113.10' }],
       },
     ],
     attack: [
@@ -108,6 +147,10 @@ export const dns = defineScenario({
           ['狙い', 'キャッシュにない名前で毎回権威DNSへ問合せさせる'],
         ],
         note: 'キャッシュ済みの名前は上書きしにくいので、攻撃者は毎回違うサブドメインを問い合わせ、キャッシュDNSに権威DNSへの問合せを発生させます。外部からの再帰問合せを受け付けるキャッシュDNS（オープンリゾルバ）が狙われます。',
+        send: '攻撃者：キャッシュにあるはずのない名前 x7f3q.example.net を、キャッシュDNSに問い合わせます。',
+        via: { fw: 'FW：外部からキャッシュDNSへのDNSの通信を、通してしまう設定になっています。' },
+        receive: 'キャッシュDNS：外部からの再帰問合せも受け付けてしまいます（オープンリゾルバ）。キャッシュにない名前なので、権威DNSへ問い合わせに行きます。',
+        wire: { app: 'DNS（問合せ）', transport: 'UDP', srcPort: '40001', dstPort: '53', srcIp: ATTACKER },
       },
       {
         from: 'cache',
@@ -121,6 +164,24 @@ export const dns = defineScenario({
           ['QNAME', 'x7f3q.example.net'],
         ],
         note: '送信元ポートが固定だと、攻撃者が当てる必要があるのはIDの16ビット（65,536通り）だけです。',
+        send: 'キャッシュDNS：問合せIDは毎回変えますが、送信元ポートはいつも53番です。待っている応答を記録して、権威DNSへ問い合わせます。',
+        via: { fw: 'FW：社内のキャッシュDNSから外部への問合せなので、通します。' },
+        receive: '権威DNS：問合せを受け取り、答えを準備します。インターネットを往復する分、応答がキャッシュDNSに届くまでには時間がかかります。',
+        wire: {
+          app: 'DNS（問合せ）',
+          transport: 'UDP',
+          srcPort: '53（固定）',
+          dstPort: '53',
+          dstIp: AUTH,
+          focus: ['l4'],
+          remark: '送信元ポートが固定なので、攻撃者は応答の宛先ポートを当てる必要がありません。',
+        },
+        changes: [
+          { table: 'pending', key: 'ID', value: '0x5e21（攻撃者には見えない）', at: 'cache' },
+          { table: 'pending', key: '待ち受けポート', value: '53（固定なので推測できる）', tone: 'attack', at: 'cache' },
+          { table: 'pending', key: '質問', value: 'x7f3q.example.net A', at: 'cache' },
+          { table: 'pending', key: '状態', value: '応答待ち', at: 'cache' },
+        ],
       },
       {
         from: 'atk',
@@ -135,6 +196,24 @@ export const dns = defineScenario({
           ['追加セクション', 'ns.example.net A 198.51.100.66（攻撃者のDNSサーバ）'],
         ],
         note: '正規の応答より先に、IDが一致した偽応答が1つでも届けば受理されます。権威セクションと追加セクションで、example.net ドメイン全体の権威DNSサーバのIPアドレスを攻撃者のサーバに差し替えるのが、カミンスキー型の特徴です。',
+        send: '攻撃者：送信元IPアドレスを権威DNS（192.0.2.53）に偽装し、IDを1つずつ変えながら、偽の応答を大量に送ります。',
+        via: {
+          inet: 'インターネット：ルータは宛先IPアドレスしか見ないので、送信元が偽物でも届けてしまいます。',
+          fw: 'FW：送信元が権威DNSのIPアドレスで、ポートも問合せと合っているので、応答として通してしまいます。',
+        },
+        receive: 'キャッシュDNS：IDが一致した偽応答を、待っていた応答として受理します。「example.net の権威DNSは 198.51.100.66」という偽の情報まで記録してしまいます。',
+        wire: {
+          app: 'DNS（偽の応答）',
+          transport: 'UDP',
+          srcPort: '53',
+          dstPort: '53',
+          srcIp: '192.0.2.53（権威DNSを詐称）',
+          focus: ['l3', 'l7'],
+        },
+        changes: [
+          { table: 'pending', key: '状態', value: '偽応答を受理（IDが一致）→ 待ち受け終了', tone: 'attack' },
+          { table: 'cache', key: 'example.net の権威DNS', value: 'ns.example.net 198.51.100.66（攻撃者）', tone: 'attack' },
+        ],
       },
       {
         from: 'auth',
@@ -146,6 +225,10 @@ export const dns = defineScenario({
           ['結果', 'すでに偽応答を受理済みのため破棄'],
         ],
         note: '正規の応答は先着順の勝負に負けて捨てられます。',
+        send: '権威DNS：正規の応答を返します。',
+        via: { fw: 'FW：問合せへの応答なので、通します。' },
+        receive: 'キャッシュDNS：この問合せの応答はすでに受理して待ち受けを終えているので、遅れて届いた正規の応答を捨てます。',
+        wire: { app: 'DNS（応答）', transport: 'UDP', srcPort: '53', dstPort: '53', srcIp: AUTH },
       },
       {
         from: 'pc',
@@ -158,6 +241,10 @@ export const dns = defineScenario({
           ['QTYPE', 'A'],
         ],
         note: '利用者側には何の異変もありません。キャッシュDNSは、差し替えられた権威サーバ（攻撃者のサーバ）に問い合わせることになります。',
+        send: 'PC：いつもどおり、www.example.net を問い合わせます。',
+        receive: 'キャッシュDNS：example.net の権威DNSは 198.51.100.66（攻撃者のサーバ）だと記録しているので、そこへ問い合わせます。偽の答え 198.51.100.80 を受け取り、キャッシュします。',
+        wire: { app: 'DNS（問合せ）', transport: 'UDP', srcPort: '50123', dstPort: '53', srcIp: PC, dstIp: CACHE },
+        changes: [{ table: 'cache', key: 'www.example.net', value: 'A 198.51.100.80（偽）', tone: 'attack' }],
       },
       {
         from: 'cache',
@@ -171,6 +258,10 @@ export const dns = defineScenario({
         ],
         note: 'このキャッシュDNSを使う全利用者が、TTLが切れるまで偽サイトへ誘導されます。URLは正しいので利用者は気付きにくいです。',
         point: '被害が「そのキャッシュDNSを使う全利用者」に及ぶ点が、PC単体のhostsファイル改ざんとの違いです。',
+        send: 'キャッシュDNS：キャッシュした偽の答えを、PCに返します。',
+        receive: 'PC：198.51.100.80（攻撃者のサーバ）に接続してしまいます。URLは正しいままなので、利用者は気付けません。',
+        wire: { app: 'DNS（応答）', transport: 'UDP', srcPort: '53', dstPort: '50123', srcIp: CACHE, dstIp: PC, focus: ['l7'] },
+        changes: [{ table: 'pc', key: 'www.example.net', value: '198.51.100.80（偽のサーバ）', tone: 'attack' }],
       },
     ],
     defense: [
@@ -185,6 +276,10 @@ export const dns = defineScenario({
           ['応答', 'REFUSED'],
         ],
         note: 'キャッシュDNSを外部に開放しなければ、攻撃者は問合せのきっかけを作れません。以下は、内部の感染端末などから問合せが発生した場合です。',
+        send: '攻撃者：キャッシュDNSに、存在しない名前を問い合わせようとします。',
+        via: { fw: 'FW：この例では通過します（FWで外部からのDNSの通信を止めておくのも有効です）。' },
+        receive: 'キャッシュDNS：送信元が社内のアドレスではないので、再帰問合せを断って REFUSED を返します。権威DNSへの問合せは発生しません。',
+        wire: { app: 'DNS（問合せ）', transport: 'UDP', srcPort: '40001', dstPort: '53', srcIp: ATTACKER, focus: ['l3'] },
       },
       {
         from: 'cache',
@@ -198,6 +293,16 @@ export const dns = defineScenario({
           ['DNSSEC', 'DOビット=1（署名を要求）'],
         ],
         note: 'IDに加えて送信元ポートもランダムにすると、攻撃者が当てる組合せは「約65,536 × 数万通り」に増え、先着で一致させるのが現実的でなくなります。',
+        send: 'キャッシュDNS：IDだけでなく、送信元ポートもランダムに選びます。DNSSECの署名も要求して問い合わせます。',
+        via: { fw: 'FW：社内のキャッシュDNSから外部への問合せなので、通します。' },
+        receive: '権威DNS：答えに署名を付けて返す準備をします。',
+        wire: { app: 'DNS（問合せ）', transport: 'UDP', srcPort: '61027（ランダム）', dstPort: '53', dstIp: AUTH, focus: ['l4'] },
+        changes: [
+          { table: 'pending', key: 'ID', value: '0x9d04（ランダム）', at: 'cache' },
+          { table: 'pending', key: '待ち受けポート', value: '61027（ランダム）', tone: 'defense', at: 'cache' },
+          { table: 'pending', key: '質問', value: 'www.example.net A', at: 'cache' },
+          { table: 'pending', key: '状態', value: '応答待ち（署名を要求）', at: 'cache' },
+        ],
       },
       {
         from: 'atk',
@@ -210,6 +315,21 @@ export const dns = defineScenario({
           ['RRSIG', 'なし／検証失敗 → 破棄'],
         ],
         note: 'ポートが一致しない応答は破棄されます。仮に一致しても、DNSSECで検証するキャッシュDNSは、ゾーンの秘密鍵で作られた署名（RRSIG）がない応答を受け入れません。',
+        send: '攻撃者：権威DNSになりすまし、IDとポートを推測しながら偽の応答を送ります。',
+        via: {
+          inet: 'インターネット：送信元が偽物でも、宛先へ届けてしまいます。',
+          fw: 'FW：応答として通します（受け入れるかどうかは、キャッシュDNSが判断します）。',
+        },
+        receive: 'キャッシュDNS：宛先ポートが待っている61027番と違うので捨てます。仮に一致しても、署名（RRSIG）を検証できない応答は受け入れません。',
+        wire: {
+          app: 'DNS（偽の応答）',
+          transport: 'UDP',
+          srcPort: '53',
+          dstPort: '53 など（推測）',
+          srcIp: '192.0.2.53（権威DNSを詐称）',
+          focus: ['l4', 'l7'],
+        },
+        changes: [{ table: 'pending', key: '捨てた応答', value: '偽応答（ポート不一致・署名なし）', tone: 'defense' }],
       },
       {
         from: 'auth',
@@ -224,6 +344,14 @@ export const dns = defineScenario({
         ],
         note: 'キャッシュDNSは、親ゾーンから順に鍵の正当性を確かめる「信頼の連鎖」で署名を検証します。',
         point: 'DNSSECが保証するのは応答の完全性と送信元の真正性です。通信の暗号化（機密性）は提供しません。',
+        send: '権威DNS：答えに、ゾーンの秘密鍵で作った署名（RRSIG）を付けて返します。',
+        via: { fw: 'FW：問合せへの応答なので、通します。' },
+        receive: 'キャッシュDNS：ポートとIDが一致し、署名の検証（信頼の連鎖）にも成功したので受理して、キャッシュに保存します。',
+        wire: { app: 'DNS（応答＋署名）', transport: 'UDP', srcPort: '53', dstPort: '61027', srcIp: AUTH, focus: ['l7'] },
+        changes: [
+          { table: 'pending', key: '状態', value: '受理（署名の検証に成功）→ 待ち受け終了', tone: 'defense' },
+          { table: 'cache', key: 'www.example.net', value: 'A 203.0.113.10（DNSSECで検証済み）', tone: 'defense' },
+        ],
       },
       {
         from: 'cache',
@@ -236,6 +364,10 @@ export const dns = defineScenario({
           ['ADフラグ', '1（検証済み）'],
         ],
         note: '利用者は正しいサーバへ接続できます。',
+        send: 'キャッシュDNS：検証済みであることを示すADフラグを付けて、PCに答えを返します。',
+        receive: 'PC：正しいサーバ（203.0.113.10）に接続できます。',
+        wire: { app: 'DNS（応答）', transport: 'UDP', srcPort: '53', dstPort: '50123', srcIp: CACHE, dstIp: PC },
+        changes: [{ table: 'pc', key: 'www.example.net', value: '203.0.113.10（正しいサーバ）', tone: 'defense' }],
       },
     ],
   },
