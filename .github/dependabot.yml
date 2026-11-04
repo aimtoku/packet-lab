@@ -1,0 +1,20 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # 公開から7日たっていない新バージョンへの更新は提案しない（pnpm の minimumReleaseAge と合わせる）
+    cooldown:
+      default-days: 7
+    groups:
+      dependencies:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7

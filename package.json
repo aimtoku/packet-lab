@@ -1,0 +1,32 @@
+{
+  "name": "packet-lab",
+  "private": true,
+  "version": "0.1.0",
+  "description": "情報処理安全確保支援士の範囲で、通信への攻撃と対策をパケット単位で図解する学習サイト",
+  "type": "module",
+  "packageManager": "pnpm@10.34.7+sha512.ba98abc585539933375b5971f4bc6d6c73a1b4b7edc4a879e7d102fe5423d1e02309d67c60a11f04955093a96e521ad9c3b138cdd654ca5be563f378b3ae48bd",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check:security": "node scripts/check-security.mjs",
+    "verify": "pnpm run typecheck && pnpm run test && pnpm run build && pnpm run check:security"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@fontsource/ibm-plex-sans-jp": "5.3.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "5.0.5",
+    "wrangler": "4.151.3"
+  }
+}
