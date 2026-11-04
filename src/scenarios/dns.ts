@@ -253,7 +253,7 @@ export const dns = defineScenario({
       atk: 'ext2',
     },
     shields: ['cache'],
-    external: {
+    devices: {
       ext1: {
         type: 'server',
         name: '権威DNS',

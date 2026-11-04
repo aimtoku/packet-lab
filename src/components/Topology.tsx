@@ -7,6 +7,7 @@ import {
   pathLength,
   pointAlong,
   TOP_HEIGHT,
+  type Point,
   VIEW_HEIGHT,
   VIEW_HEIGHT_MOBILE,
   VIEW_WIDTH,
@@ -23,6 +24,22 @@ interface Props {
 
 /** 阻止された攻撃のパケットを、終点の手前どこで止めるか */
 const BLOCK_INSET = 22
+
+/**
+ * 阻止の印（✕）の位置。止まった位置から、経路と直角の方向に少しずらす
+ * （上向き、経路が縦のときは右向き）。機器の名前やバッジと重ならないようにするため。
+ */
+function crossPosition(points: readonly Point[], stop: Point): Point {
+  const a = points[points.length - 2]!
+  const b = points[points.length - 1]!
+  const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1
+  let px = -(b[1] - a[1]) / len
+  let py = (b[0] - a[0]) / len
+  if (Math.abs(py) < 0.35) {
+    if (px < 0) [px, py] = [-px, -py]
+  } else if (py > 0) [px, py] = [-px, -py]
+  return [stop[0] + px * 15, stop[1] + py * 15]
+}
 
 export function Topology({ scenario, mode, index }: Props) {
   const nodes = useMemo(() => nodesFor(scenario), [scenario])
@@ -42,12 +59,15 @@ export function Topology({ scenario, mode, index }: Props) {
   const targetId = scenario.topology.map[step.to]
   const height = scenario.topology.mobile ? VIEW_HEIGHT_MOBILE : VIEW_HEIGHT
   const zones = ZONES.filter(
-    (z) => (z.id !== 'ext' || scenario.topology.external) && (z.id !== 'mobile' || scenario.topology.mobile),
+    (z) =>
+      (z.id !== 'ext' || scenario.topology.devices?.ext1 || scenario.topology.devices?.ext2) &&
+      (z.id !== 'mobile' || scenario.topology.mobile),
   )
   // 奥（上）の機器から順に描き、手前の機器が重なるようにする
   const order = (Object.keys(nodes) as NodeId[]).sort((a, b) => nodes[a]!.y - nodes[b]!.y)
   const isDim = (id: NodeId) => !involved.has(id) || (attackers.includes(id) && mode === 'normal')
   const stopPoint = blocked && points.length > 1 ? pointAlong(points, pathLength(points) - BLOCK_INSET) : null
+  const cross = stopPoint ? crossPosition(points, stopPoint) : null
 
   return (
     <svg viewBox={`0 0 ${VIEW_WIDTH} ${height}`} role="img" aria-label={`${scenario.name}のネットワーク構成図`}>
@@ -102,7 +122,10 @@ export function Topology({ scenario, mode, index }: Props) {
               </g>
             )}
             {mode === 'defense' && scenario.topology.shields.includes(id) && (
-              <g transform={`translate(${node.x - 13},${badgeY})`} className="badge-shield">
+              <g
+                transform={node.type === 'cloud' ? `translate(${node.x - 50},${node.y - 4})` : `translate(${node.x - 13},${badgeY})`}
+                className="badge-shield"
+              >
                 <path d="M0,-6 L6,-4 V1 C6,5 0,8 0,8 C0,8 -6,5 -6,1 V-4 Z" />
                 <text y={3} textAnchor="middle">
                   ✓
@@ -114,11 +137,8 @@ export function Topology({ scenario, mode, index }: Props) {
       })}
 
       {points.length > 1 && <circle ref={ref} r={5} className={`packet k-${step.kind}`} cx={points[0]![0]} cy={points[0]![1]} />}
-      {stopPoint && arrived && (
-        <path
-          className="blocked-mark"
-          d={`M${stopPoint[0] - 6},${stopPoint[1] - 20} l12,12 M${stopPoint[0] + 6},${stopPoint[1] - 20} l-12,12`}
-        />
+      {cross && arrived && (
+        <path className="blocked-mark" d={`M${cross[0] - 6},${cross[1] - 6} l12,12 M${cross[0] + 6},${cross[1] - 6} l-12,12`} />
       )}
     </svg>
   )

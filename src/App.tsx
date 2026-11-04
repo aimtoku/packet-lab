@@ -33,7 +33,7 @@ export function App() {
         </div>
       </header>
 
-      <main className="wrap">
+      <main className={scenario ? 'wrap wide' : 'wrap'}>
         {scenario ? (
           <ScenarioView key={scenario.id} scenario={scenario} />
         ) : notFound ? (
@@ -50,7 +50,7 @@ export function App() {
       <footer className="site-footer">
         <div className="wrap footer-inner">
           <p>
-            図中のIPアドレスとドメインは、説明用に予約されたもの（RFC 5737、RFC 2606）で、実在のサーバを指しません。攻撃の解説は、仕組みと対策を理解するためのものです。
+            図中のIPアドレス、MACアドレス、ドメインは、説明用やプライベート用に予約されたもの（RFC 5737、RFC 1918、RFC 7042、RFC 2606）で、実在のサーバを指しません。攻撃の解説は、仕組みと対策を理解するためのものです。
           </p>
           <ul className="footer-links">
             <li>

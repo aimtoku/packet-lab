@@ -209,7 +209,7 @@ export const web = defineScenario({
       evil: 'ext2',
     },
     shields: ['ext1', 'pc'],
-    external: {
+    devices: {
       ext1: {
         type: 'server',
         name: '正規サイト',

@@ -7,13 +7,15 @@ interface Props {
   mode: Mode
   index: number
   onSelect: (index: number) => void
+  /** 選んでいる用語が出てくるステップ */
+  marked: ReadonlySet<number>
 }
 
 const WIDTH = 360
 const ROW_TOP = 86
 const ROW_GAP = 46
 
-export function Sequence({ scenario, mode, index, onSelect }: Props) {
+export function Sequence({ scenario, mode, index, onSelect, marked }: Props) {
   const { actors } = scenario
   const steps = scenario.steps[mode]
   const margin = actors.length === 3 ? 62 : 46
@@ -59,7 +61,7 @@ export function Sequence({ scenario, mode, index, onSelect }: Props) {
         const rowY = ROW_TOP + i * ROW_GAP
         const from = xOf.get(s.from) ?? 0
         const to = xOf.get(s.to) ?? 0
-        const state = i > index ? ' future' : i === index ? ' current' : ''
+        const state = (i > index ? ' future' : i === index ? ' current' : '') + (marked.has(i) ? ' has-term' : '')
         const d = to > from ? 1 : -1
         const tip = to - d * 3
         return (
@@ -97,6 +99,7 @@ export function Sequence({ scenario, mode, index, onSelect }: Props) {
                 </text>
               </>
             )}
+            {marked.has(i) && <circle cx={13} cy={rowY - 9} r={3} className="term-dot" />}
             <text x={8} y={rowY + 3} className="seq-no">
               {String(i + 1).padStart(2, '0')}
             </text>
