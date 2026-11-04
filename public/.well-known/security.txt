@@ -1,0 +1,5 @@
+# 脆弱性を見つけた場合の連絡先（RFC 9116）
+Contact: https://github.com/aimtoku/packet-lab/security/advisories/new
+Expires: 2027-10-31T00:00:00.000Z
+Preferred-Languages: ja, en
+Policy: https://github.com/aimtoku/packet-lab/security/policy

@@ -1,0 +1,14 @@
+// Cloudflare Workers の設定。Workerのコードは持たず、静的ファイル（dist）だけを配信する。
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "packet-lab",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    // /dns などのURLに直接アクセスしたときも index.html を返す
+    "not_found_handling": "single-page-application"
+  },
+  "workers_dev": true,
+  // PRごとの確認用URLを有効にする
+  "preview_urls": true
+}
