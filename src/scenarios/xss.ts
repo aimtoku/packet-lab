@@ -3,6 +3,15 @@ import { defineScenario } from '../types'
 // Web掲示板：XSS（格納型）
 // 図中のIPアドレスとドメイン（example.*）は、説明用に予約されたもので、実在のサーバを指しません。
 // 攻撃のスクリプトは、仕組みが分かる程度に省略して載せています。
+//
+// 掲示板サイト（forum.example）203.0.113.90、攻撃者（evil.example）198.51.100.66。
+// 通信はすべてHTTPS（TLS）です。PCの送信元アドレスは、FWで変換されるので名前だけで表しています。
+const FORUM = '203.0.113.90'
+const EVIL = '198.51.100.66'
+
+/** 掲示板に最初から保存されている投稿 */
+const FIRST_POST = [['tanaka', 'おはようございます']] as const
+
 export const xss = defineScenario({
   id: 'xss',
   name: 'Web掲示板',
@@ -17,6 +26,25 @@ export const xss = defineScenario({
     attack: '攻撃者がスクリプトを含む投稿を保存させ、それを閲覧した利用者のブラウザでスクリプトを実行させて、セッションIDを盗みます（格納型XSS）。',
     defense: '出力時のエスケープでスクリプトをただの文字にし、CSPとHttpOnly属性で、万一の実行やCookieの持ち出しも防ぎます。',
   },
+  states: [
+    {
+      id: 'db',
+      title: '掲示板のデータベース',
+      columns: ['投稿者', '保存した内容'],
+      initial: { normal: FIRST_POST, attack: FIRST_POST, defense: FIRST_POST },
+    },
+    {
+      id: 'cookie',
+      title: 'ブラウザのCookie（forum.example）',
+      columns: ['名前', '値と属性'],
+      initial: {
+        normal: [['SID', '4c1d…']],
+        attack: [['SID', '4c1d…（HttpOnly なし）']],
+        defense: [['SID', '4c1d…（Secure、HttpOnly、SameSite=Lax）']],
+      },
+    },
+    { id: 'loot', title: '攻撃者の手元', columns: ['項目', '内容'], modes: ['attack', 'defense'] },
+  ],
   steps: {
     normal: [
       {
@@ -31,6 +59,11 @@ export const xss = defineScenario({
           ['Cookie', 'SID=4c1d…（ログイン中のセッションID）'],
         ],
         note: '投稿した内容は、サーバのデータベースに保存されます。',
+        send: 'ブラウザ：入力した文章を、POSTリクエストの本文に入れて送ります。',
+        via: { fw: 'FW：外部のWebサイトへのHTTPS（443番ポート）なので、通します。' },
+        receive: '掲示板サイト：投稿された文章を、そのままデータベースに保存します。',
+        wire: { app: 'HTTP（POST /posts）', transport: 'TCP', srcPort: '50400', dstPort: '443', dstIp: FORUM, secure: 'TLS', focus: ['l7'] },
+        changes: [{ table: 'db', key: 'sato', value: '今日の勉強会は19時からです' }],
       },
       {
         from: 'sv',
@@ -43,6 +76,10 @@ export const xss = defineScenario({
           ['保存した内容', '今日の勉強会は19時からです'],
         ],
         note: 'サーバは投稿を保存し、ブラウザを一覧ページへ移動させます。',
+        send: '掲示板サイト：保存が終わったので、一覧ページ（/posts）へ移動するよう指示します。',
+        via: { fw: 'FW：応答なので、通します。' },
+        receive: 'ブラウザ：指示に従って、一覧ページを開きにいきます。',
+        wire: { app: 'HTTP（303 See Other）', transport: 'TCP', srcPort: '443', dstPort: '50400', srcIp: FORUM, secure: 'TLS' },
       },
       {
         from: 'br',
@@ -55,6 +92,10 @@ export const xss = defineScenario({
           ['Cookie', 'SID=4c1d…'],
         ],
         note: 'ほかの利用者も、同じ一覧ページを開きます。',
+        send: 'ブラウザ：一覧ページを要求します。',
+        via: { fw: 'FW：HTTPSの通信なので、通します。' },
+        receive: '掲示板サイト：データベースから投稿を読み出して、一覧ページのHTMLを組み立てます。',
+        wire: { app: 'HTTP（GET /posts）', transport: 'TCP', srcPort: '50401', dstPort: '443', dstIp: FORUM, secure: 'TLS' },
       },
       {
         from: 'sv',
@@ -68,6 +109,10 @@ export const xss = defineScenario({
         ],
         note: 'サーバは保存した投稿を、HTMLの中に埋め込んで返します。投稿に「<」や「>」が含まれていたときにどう扱うかが、XSSの分かれ目です。',
         point: 'XSSの根本原因は、利用者が入力した文字列を、HTMLとして解釈される場所にそのまま出力することです。',
+        send: '掲示板サイト：保存してある投稿を、HTMLの中に埋め込んで返します。',
+        via: { fw: 'FW：応答なので、通します。' },
+        receive: 'ブラウザ：HTMLを解釈して表示します。投稿の中に「<」があったとき、それがタグとして解釈されるかどうかが分かれ目です。',
+        wire: { app: 'HTTP（一覧ページのHTML）', transport: 'TCP', srcPort: '443', dstPort: '50401', srcIp: FORUM, secure: 'TLS', focus: ['l7'] },
       },
     ],
     attack: [
@@ -83,6 +128,10 @@ export const xss = defineScenario({
           ['ねらい', '閲覧した人のCookieを、攻撃者のサーバへ送らせる'],
         ],
         note: '掲示板が入力をそのまま保存するので、スクリプトがデータベースに格納されます。この種類を格納型XSS（蓄積型・持続型）と呼び、ページを閲覧した全員が被害を受けます。',
+        send: '攻撃者：<script> タグを含む文章を、ふつうの投稿として送ります。',
+        receive: '掲示板サイト：入力をそのままデータベースに保存してしまいます。',
+        wire: { app: 'HTTP（POST /posts）', transport: 'TCP', srcPort: '41200', dstPort: '443', srcIp: EVIL, dstIp: FORUM, secure: 'TLS', focus: ['l7'] },
+        changes: [{ table: 'db', key: 'attacker', value: '<script>（Cookieを送る処理）</script>', tone: 'attack' }],
       },
       {
         from: 'br',
@@ -95,6 +144,10 @@ export const xss = defineScenario({
           ['Cookie', 'SID=4c1d…'],
         ],
         note: '利用者は、いつもどおり掲示板を開くだけです。',
+        send: 'ブラウザ：利用者が、いつもどおり一覧ページを開きます。',
+        via: { fw: 'FW：HTTPSの通信なので、通します。' },
+        receive: '掲示板サイト：攻撃者の投稿も含めて、データベースから読み出します。',
+        wire: { app: 'HTTP（GET /posts）', transport: 'TCP', srcPort: '50401', dstPort: '443', dstIp: FORUM, secure: 'TLS' },
       },
       {
         from: 'sv',
@@ -107,6 +160,10 @@ export const xss = defineScenario({
           ['エスケープ', 'していない'],
         ],
         note: 'サーバが投稿をエスケープせずに出力するので、ブラウザはそれを掲示板サイトのスクリプトとして実行します。同一オリジンのスクリプトとして動くため、このサイトのCookieにアクセスできます。',
+        send: '掲示板サイト：投稿をエスケープせずに、そのままHTMLへ埋め込んで返します。',
+        via: { fw: 'FW：応答なので、通します。中身は暗号化されているので、FWからは見えません。' },
+        receive: 'ブラウザ：<script> をタグとして解釈し、掲示板サイトのスクリプトとして実行します。スクリプトは document.cookie からSIDを読み出します。',
+        wire: { app: 'HTTP（一覧ページのHTML）', transport: 'TCP', srcPort: '443', dstPort: '50401', srcIp: FORUM, secure: 'TLS', focus: ['l7'] },
       },
       {
         from: 'br',
@@ -119,6 +176,11 @@ export const xss = defineScenario({
           ['Cookieの属性', 'HttpOnly なし（JavaScriptから読める）'],
         ],
         note: 'スクリプトは画像の読み込みなどを装って、Cookieを攻撃者のサーバへ送ります。利用者の画面には何も起きません。',
+        send: 'ブラウザ：スクリプトが、画像の読み込みを装って、SIDを付けたURLへリクエストを送ります。',
+        via: { fw: 'FW：ふつうのWebアクセスに見えるので、通します。' },
+        receive: '攻撃者：利用者のセッションIDを手に入れます。',
+        wire: { app: 'HTTP（GET /c?SID=4c1d…）', transport: 'TCP', srcPort: '50410', dstPort: '443', dstIp: EVIL, secure: 'TLS', focus: ['l7'] },
+        changes: [{ table: 'loot', key: 'SID', value: '4c1d…（利用者のセッションID）', tone: 'attack' }],
       },
       {
         from: 'atk',
@@ -132,6 +194,10 @@ export const xss = defineScenario({
         ],
         note: '攻撃者は盗んだセッションIDを使って、利用者になりすまします。',
         point: 'XSSの被害はCookieの窃取だけではありません。偽の入力フォームを表示したり、利用者の操作になりすまして送信したりと、そのサイトで利用者ができることは何でもできてしまいます。',
+        send: '攻撃者：盗んだSIDを自分のブラウザのCookieにセットして、掲示板サイトにアクセスします。',
+        receive: '掲示板サイト：有効なセッションIDなので、利用者本人がログインしているものとして扱ってしまいます。',
+        wire: { app: 'HTTP（GET /mypage）', transport: 'TCP', srcPort: '41210', dstPort: '443', srcIp: EVIL, dstIp: FORUM, secure: 'TLS' },
+        changes: [{ table: 'loot', key: 'なりすまし', value: '利用者としてログイン中', tone: 'attack' }],
       },
     ],
     defense: [
@@ -145,6 +211,10 @@ export const xss = defineScenario({
           ['本文', 'message=<script>（Cookieを送る処理）</script>'],
         ],
         note: '攻撃者の手口は同じです。入力の段階で弾く入力値の検証も有効ですが、根本対策は次の「出力時のエスケープ」です。',
+        send: '攻撃者：<script> タグを含む文章を投稿します。',
+        receive: '掲示板サイト：文章として保存します。出力するときにエスケープするので、保存の時点では書き換えません。',
+        wire: { app: 'HTTP（POST /posts）', transport: 'TCP', srcPort: '41200', dstPort: '443', srcIp: EVIL, dstIp: FORUM, secure: 'TLS' },
+        changes: [{ table: 'db', key: 'attacker', value: '<script>（Cookieを送る処理）</script>', tone: 'attack' }],
       },
       {
         from: 'br',
@@ -156,6 +226,10 @@ export const xss = defineScenario({
           ['メソッド', 'GET /posts'],
         ],
         note: '利用者の操作も同じです。',
+        send: 'ブラウザ：利用者が一覧ページを開きます。',
+        via: { fw: 'FW：HTTPSの通信なので、通します。' },
+        receive: '掲示板サイト：投稿を読み出して、HTMLを組み立てます。',
+        wire: { app: 'HTTP（GET /posts）', transport: 'TCP', srcPort: '50401', dstPort: '443', dstIp: FORUM, secure: 'TLS' },
       },
       {
         from: 'sv',
@@ -170,11 +244,16 @@ export const xss = defineScenario({
         ],
         note: '「<」を「&lt;」のように置き換えて出力するので、ブラウザは投稿をただの文字として表示します。さらにCSPで、サイト自身のファイル以外のスクリプト（ページに直接書かれたものを含む）の実行を禁止しています。',
         point: 'エスケープは、出力する場所に合わせて行います。HTMLの本文、属性値、JavaScriptの中、URLでは、必要な処理が異なります。',
+        send: '掲示板サイト：投稿の「<」を「&lt;」などに置き換えて（エスケープして）埋め込みます。CSPヘッダも付けて返します。',
+        via: { fw: 'FW：応答なので、通します。' },
+        receive: 'ブラウザ：投稿を、ただの文字「<script>…」として表示します。スクリプトは実行されません。',
+        wire: { app: 'HTTP（一覧ページのHTML）', transport: 'TCP', srcPort: '443', dstPort: '50401', srcIp: FORUM, secure: 'TLS', focus: ['l7'] },
       },
       {
         from: 'br',
         to: 'atk',
         kind: 'blocked',
+        blockedAt: 'pc',
         label: 'Cookie送信 → 遮断',
         title: '万一実行されても持ち出させない',
         fields: [
@@ -182,6 +261,17 @@ export const xss = defineScenario({
           ['HttpOnly', 'document.cookie からSIDを読めない'],
         ],
         note: 'エスケープに漏れがあっても、CSPがスクリプトの実行を止め、HttpOnly属性がCookieの読み取りを防ぎます。複数の対策を重ねる多層防御の考え方です。',
+        send: 'ブラウザ：（エスケープに漏れがあり、スクリプトが紛れ込んだとします）スクリプトが、SIDを攻撃者へ送ろうとします。',
+        receive: 'ブラウザ：CSPで許可していないスクリプトは実行しません。仮に実行されても、HttpOnly属性のCookieは document.cookie から読めないので、SIDは持ち出せません。',
+        wire: {
+          app: 'HTTP（GET /c?SID=…）',
+          transport: 'TCP',
+          srcPort: '50420',
+          dstPort: '443',
+          dstIp: EVIL,
+          secure: 'TLS',
+          remark: 'このリクエストは、ブラウザの中で止められて送信されません。',
+        },
       },
     ],
   },

@@ -3,6 +3,11 @@ import { defineScenario } from '../types'
 // HTTPS（TLS 1.3）：中間者攻撃
 // 図中のIPアドレス（192.0.2.0/24、198.51.100.0/24、203.0.113.0/24）とドメイン（example.*）は、
 // 説明用に予約されたもので、実在のサーバを指しません。
+//
+// Webサーバ（www.example.co.jp）のIPアドレスは 203.0.113.10。
+// ノートPCの送信元アドレスは、公衆Wi-Fiの中で変換されるので、名前だけで表しています。
+const WEB = '203.0.113.10'
+
 export const tls = defineScenario({
   id: 'tls',
   name: 'HTTPS（TLS 1.3）',
@@ -30,6 +35,34 @@ export const tls = defineScenario({
     attack: '公衆Wi-Fiなどで通信経路に入り込んだ攻撃者が、ブラウザとサーバの間に割り込みます（中間者攻撃、MITM）。',
     defense: '証明書の検証とHSTSにより、攻撃者は正規サーバになりすませません。',
   },
+  states: [
+    {
+      id: 'browser',
+      title: 'ブラウザの状態',
+      columns: ['項目', '状態'],
+      initial: {
+        normal: [
+          ['つないでいるWi-Fi', '公衆Wi-Fi（正規のAP）'],
+          ['共通鍵', 'まだない'],
+          ['サーバの確認', 'まだ'],
+          ['通信', '未接続'],
+        ],
+        attack: [
+          ['つないでいるWi-Fi', '偽AP（正規と同じ名前）'],
+          ['共通鍵', 'まだない'],
+          ['サーバの確認', 'まだ'],
+          ['通信', '未接続'],
+        ],
+        defense: [
+          ['つないでいるWi-Fi', '偽AP（正規と同じ名前）'],
+          ['HSTS', 'www.example.co.jp を記録済み（HTTPSのみ）'],
+          ['サーバの確認', 'まだ'],
+          ['通信', '未接続'],
+        ],
+      },
+    },
+    { id: 'atk', title: '攻撃者の手元', columns: ['項目', '内容'], modes: ['attack', 'defense'] },
+  ],
   steps: {
     normal: [
       {
@@ -46,6 +79,18 @@ export const tls = defineScenario({
           ['乱数', 'client_random（32バイト）'],
         ],
         note: 'TLS 1.3では、ClientHelloの時点で鍵交換用の公開値（key_share）も送ります。これで往復が1回で済みます。',
+        send: 'ブラウザ：使える暗号スイートの一覧と、鍵交換に使う自分の公開値（key_share）を入れて、接続を始めます。',
+        via: { fw: 'FW：Webサーバの443番ポート（HTTPS）への通信は許可されているので、通します。' },
+        receive: 'Webサーバ：暗号スイートを1つ選び、鍵交換に使う自分の公開値を用意します。',
+        wire: {
+          app: 'TLS（ClientHello）',
+          transport: 'TCP',
+          srcPort: '50123',
+          dstPort: '443',
+          dstIp: WEB,
+          focus: ['l7'],
+          remark: 'TLSのハンドシェイクの前に、TCPの3ウェイハンドシェイクで接続を確立しています。',
+        },
       },
       {
         from: 'sv',
@@ -60,6 +105,11 @@ export const tls = defineScenario({
         ],
         note: '双方の公開値から、ECDHEで同じ共通鍵を導出します。この直後から、ハンドシェイクの残りも暗号化されます。',
         point: '接続ごとに使い捨ての鍵を作るので、サーバの秘密鍵が後で漏れても過去の通信は復号できません（前方秘匿性、PFS）。',
+        send: 'Webサーバ：選んだ暗号スイートと、自分の公開値を返します。サーバは、この時点で共通鍵を計算できます。',
+        via: { fw: 'FW：ブラウザから始まった通信への応答なので、通します。' },
+        receive: 'ブラウザ：自分の秘密の値とサーバの公開値から、サーバと同じ共通鍵を計算します（ECDHE）。鍵そのものは、通信路を一度も流れていません。',
+        wire: { app: 'TLS（ServerHello）', transport: 'TCP', srcPort: '443', dstPort: '50123', srcIp: WEB, focus: ['l7'] },
+        changes: [{ table: 'browser', key: '共通鍵', value: 'ECDHEで計算済み（通信路には流れていない）' }],
       },
       {
         from: 'sv',
@@ -73,6 +123,20 @@ export const tls = defineScenario({
           ['CertificateVerify', 'ここまでのやりとりをサーバの秘密鍵で署名'],
         ],
         note: 'ブラウザは、証明書チェーンが信頼済みルートCAまで辿れるか、有効期限、失効状態（OCSPなど）、SANとアクセス先ホスト名の一致を確認します。さらにCertificateVerifyの署名を証明書の公開鍵で検証し、相手が秘密鍵の持ち主であることを確かめます。',
+        send: 'Webサーバ：サーバ証明書と、ここまでのやりとりに対する署名（CertificateVerify）を、共通鍵で暗号化して送ります。',
+        via: { fw: 'FW：応答なので通します。中身は暗号化されているので、FWからは証明書も見えません。' },
+        receive: 'ブラウザ：証明書チェーンを信頼済みのルートCAまでたどり、ホスト名や有効期限を確かめます。さらに証明書の公開鍵で署名を検証し、相手が秘密鍵の持ち主だと確認します。',
+        wire: {
+          app: 'Certificate・CertificateVerify',
+          transport: 'TCP',
+          srcPort: '443',
+          dstPort: '50123',
+          srcIp: WEB,
+          secure: 'TLS（ハンドシェイクの暗号化）',
+          focus: ['l7'],
+          remark: 'TLS 1.3では、証明書も暗号化して送ります。',
+        },
+        changes: [{ table: 'browser', key: 'サーバの確認', value: '証明書と署名を検証済み' }],
       },
       {
         from: 'sv',
@@ -81,9 +145,14 @@ export const tls = defineScenario({
         label: 'Finished',
         title: 'サーバ側の完了通知',
         fields: [
-          ['内容', 'ハンドシェイク全体のハッシュに対するMAC'],
+          ['内容', 'ここまでのやりとり全体のハッシュ値に対するメッセージ認証コード（MAC）'],
         ],
         note: '途中のメッセージが改ざんされていれば、ここで値が一致せず検知できます。',
+        send: 'Webサーバ：ここまでのやりとり全体のハッシュ値から、メッセージ認証コード（MAC）を計算して送ります。',
+        via: { fw: 'FW：応答なので、通します。' },
+        receive: 'ブラウザ：自分でも同じ計算をして、一致することを確かめます。途中のメッセージが書き換えられていれば、ここで一致しません。',
+        wire: { app: 'Finished', transport: 'TCP', srcPort: '443', dstPort: '50123', srcIp: WEB, secure: 'TLS（ハンドシェイクの暗号化）' },
+        changes: [{ table: 'browser', key: '通信', value: 'ハンドシェイクの改ざんなしを確認' }],
       },
       {
         from: 'br',
@@ -96,6 +165,22 @@ export const tls = defineScenario({
           ['アプリケーションデータ', 'GET /mypage（AES-GCMで暗号化）'],
         ],
         note: '以降のHTTP通信はすべて暗号化され、改ざんも検知されます。',
+        send: 'ブラウザ：自分のFinishedを送り、続けて GET /mypage を共通鍵で暗号化して送ります。',
+        via: {
+          ap: '公衆AP：中継しますが、中身は暗号化されているので読めません。',
+          fw: 'FW：中身は暗号化されていて読めないので、アドレスとポートだけを見て通します。',
+        },
+        receive: 'Webサーバ：共通鍵で復号して、リクエストを処理します。',
+        wire: {
+          app: 'HTTP（GET /mypage）',
+          transport: 'TCP',
+          srcPort: '50123',
+          dstPort: '443',
+          dstIp: WEB,
+          secure: 'TLS（AES-GCMで暗号化）',
+          focus: ['sec'],
+        },
+        changes: [{ table: 'browser', key: '通信', value: '暗号化して送受信（AES-GCM）' }],
       },
     ],
     attack: [
@@ -110,6 +195,18 @@ export const tls = defineScenario({
           ['宛先', 'www.example.co.jp のつもり'],
         ],
         note: '攻撃者は通信経路に入り込み、ブラウザからの接続を自分で受け取ります。',
+        send: 'ブラウザ：正規のAPと同じ名前（SSID）の偽APにつながっているとは知らずに、www.example.co.jp への接続を始めます。',
+        receive: '攻撃者（偽AP）：利用者の通信の出口なので、宛先が本物のWebサーバでも、まず自分が受け取ります。',
+        wire: {
+          app: 'TLS（ClientHello）',
+          transport: 'TCP',
+          srcPort: '50123',
+          dstPort: '443',
+          dstName: 'Webサーバ',
+          dstIp: WEB,
+          focus: ['l3'],
+          remark: '宛先IPアドレスは本物のWebサーバのままです。偽APは通信の出口なので、途中で受け取れます。',
+        },
       },
       {
         from: 'atk',
@@ -122,6 +219,10 @@ export const tls = defineScenario({
           ['目的', '正規サーバとの通信を中継する'],
         ],
         note: '攻撃者は利用者の代わりに正規サーバとTLS接続を張り、内容を中継します。',
+        send: '攻撃者：利用者の代わりに、本物のWebサーバへ自分で接続します。',
+        receive: 'Webサーバ：攻撃者をふつうの利用者だと思って、正規の証明書で接続に応じます。',
+        wire: { app: 'TLS（ClientHello）', transport: 'TCP', srcPort: '41000', dstPort: '443', dstIp: WEB },
+        changes: [{ table: 'atk', key: '本物のサーバとの共通鍵', value: '共有済み', tone: 'attack' }],
       },
       {
         from: 'atk',
@@ -135,6 +236,23 @@ export const tls = defineScenario({
           ['署名', '攻撃者の秘密鍵'],
         ],
         note: '攻撃者は正規サーバの秘密鍵を持たないので、正規の証明書を出してもCertificateVerifyを作れません。代わりに自分の鍵で作った証明書を出します。信頼済みCAに辿れないため、ブラウザは警告を表示します。',
+        send: '攻撃者：本物の秘密鍵を持っていないので、自分で作った証明書と、自分の秘密鍵による署名を送ります。',
+        receive: 'ブラウザ：証明書チェーンが信頼済みのルートCAまでたどれないので、警告画面を表示します。',
+        wire: {
+          app: 'Certificate（偽）',
+          transport: 'TCP',
+          srcPort: '443',
+          dstPort: '50123',
+          srcName: 'Webサーバを装う攻撃者',
+          srcIp: WEB,
+          secure: 'TLS（ただし鍵を共有した相手は攻撃者）',
+          focus: ['l7'],
+        },
+        changes: [
+          { table: 'browser', key: '共通鍵', value: '攻撃者と共有してしまった', tone: 'attack' },
+          { table: 'browser', key: 'サーバの確認', value: '失敗（信頼できない証明書）→ 警告を表示', tone: 'attack' },
+          { table: 'atk', key: 'ブラウザとの共通鍵', value: '共有済み', tone: 'attack', at: 'fakeap' },
+        ],
       },
       {
         from: 'br',
@@ -148,6 +266,21 @@ export const tls = defineScenario({
         ],
         note: 'ここで利用者が続行すると、ブラウザと攻撃者の間で暗号化通信が成立してしまいます。',
         point: 'TLSの安全性は「証明書の検証」にかかっています。利用者が警告を無視すれば、暗号化していても盗聴されます。',
+        send: '利用者：警告画面の「詳細設定」から「サイトへ進む」を選んでしまいます。ブラウザはFinishedを送ります。',
+        receive: '攻撃者：利用者との暗号化通信が成立します。その鍵は、攻撃者も持っています。',
+        wire: {
+          app: 'Finished',
+          transport: 'TCP',
+          srcPort: '50123',
+          dstPort: '443',
+          dstName: 'Webサーバ',
+          dstIp: WEB,
+          secure: 'TLS（ただし鍵を共有した相手は攻撃者）',
+        },
+        changes: [
+          { table: 'browser', key: 'サーバの確認', value: '警告を無視して続行', tone: 'attack', at: 'laptop' },
+          { table: 'browser', key: '通信', value: '暗号化（ただし相手は攻撃者）', tone: 'attack' },
+        ],
       },
       {
         from: 'br',
@@ -160,6 +293,19 @@ export const tls = defineScenario({
           ['攻撃者', '復号して閲覧・改ざんし、サーバへ転送'],
         ],
         note: '攻撃者は両側との鍵を持っているので、通信を復号して読み取り、書き換えてから中継できます。利用者もサーバも気付きません。',
+        send: 'ブラウザ：ログインフォームのID・パスワードを、共通鍵で暗号化して送ります。',
+        receive: '攻撃者：自分の鍵で復号して読み取り、本物のサーバとの鍵で暗号化し直して転送します。',
+        wire: {
+          app: 'HTTP（POST /login）',
+          transport: 'TCP',
+          srcPort: '50123',
+          dstPort: '443',
+          dstName: 'Webサーバ',
+          dstIp: WEB,
+          secure: 'TLS（攻撃者が復号できる）',
+          focus: ['sec'],
+        },
+        changes: [{ table: 'atk', key: '読み取った内容', value: 'ID・パスワード（平文）', tone: 'attack' }],
       },
     ],
     defense: [
@@ -173,6 +319,9 @@ export const tls = defineScenario({
           ['手口', '偽アクセスポイントなど'],
         ],
         note: '経路上に攻撃者がいる状況は同じです。',
+        send: 'ブラウザ：偽APにつながったまま、www.example.co.jp への接続を始めます。',
+        receive: '攻撃者（偽AP）：通信を受け取り、偽の証明書で応じようとします。',
+        wire: { app: 'TLS（ClientHello）', transport: 'TCP', srcPort: '50123', dstPort: '443', dstName: 'Webサーバ', dstIp: WEB },
       },
       {
         from: 'atk',
@@ -185,6 +334,19 @@ export const tls = defineScenario({
           ['HSTS', 'このドメインはHTTPSのみ。警告から続行できない'],
         ],
         note: 'HSTS（Strict-Transport-Security）を受け取ったことのあるドメインでは、ブラウザは証明書エラー時に「続行」させません。利用者の判断ミスを防げます。',
+        send: '攻撃者：自分で作った証明書を送ります。',
+        receive: 'ブラウザ：証明書の検証に失敗します。HSTSを記録済みのドメインなので、警告から続行する選択肢も出さずに、接続を中止します。',
+        wire: {
+          app: 'Certificate（偽）',
+          transport: 'TCP',
+          srcPort: '443',
+          dstPort: '50123',
+          srcName: 'Webサーバを装う攻撃者',
+          srcIp: WEB,
+          secure: 'TLS（相手は攻撃者）',
+          focus: ['l7'],
+        },
+        changes: [{ table: 'browser', key: 'サーバの確認', value: '失敗 → 接続を中止（続行できない）', tone: 'defense' }],
       },
       {
         from: 'br',
@@ -196,6 +358,11 @@ export const tls = defineScenario({
           ['対策', 'VPNの利用、信頼できるネットワークへの切替え'],
         ],
         note: '正規サーバと直接ハンドシェイクすれば、証明書とCertificateVerifyの検証が成功します。',
+        send: 'ブラウザ：利用者が信頼できるWi-FiやVPNに切り替えて、接続し直します。',
+        via: { fw: 'FW：443番ポート（HTTPS）への通信なので、通します。' },
+        receive: 'Webサーバ：正規の証明書で応じます。',
+        wire: { app: 'TLS（ClientHello）', transport: 'TCP', srcPort: '50124', dstPort: '443', dstIp: WEB },
+        changes: [{ table: 'browser', key: 'つないでいるWi-Fi', value: '信頼できる経路（VPNなど）', tone: 'defense', at: 'laptop' }],
       },
       {
         from: 'sv',
@@ -208,6 +375,21 @@ export const tls = defineScenario({
           ['署名', 'CertificateVerify 検証OK'],
         ],
         note: '証明書に対応する秘密鍵を持つのは正規サーバだけなので、なりすましは成立しません。',
+        send: 'Webサーバ：正規のサーバ証明書と、秘密鍵による署名を送ります。',
+        via: { fw: 'FW：応答なので、通します。' },
+        receive: 'ブラウザ：証明書チェーンも署名も検証に成功し、本物のサーバだと確認できます。',
+        wire: {
+          app: 'Certificate・CertificateVerify',
+          transport: 'TCP',
+          srcPort: '443',
+          dstPort: '50124',
+          srcIp: WEB,
+          secure: 'TLS（ハンドシェイクの暗号化）',
+        },
+        changes: [
+          { table: 'browser', key: 'サーバの確認', value: '証明書と署名を検証済み', tone: 'defense' },
+          { table: 'browser', key: '通信', value: '暗号化（相手は本物のサーバ）', tone: 'defense' },
+        ],
       },
     ],
   },

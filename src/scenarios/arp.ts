@@ -1,7 +1,15 @@
 import { defineScenario } from '../types'
 
 // 社内LAN：ARPスプーフィング
-// IPアドレスはプライベート用（RFC 1918）、MACアドレスは説明用に予約された範囲（RFC 7042）です。
+// IPアドレスはプライベート用（RFC 1918）と説明用（RFC 5737）、MACアドレスは説明用に予約された範囲（RFC 7042）です。
+//
+// PC 192.168.1.10（00:00:5e:00:53:0a）、ゲートウェイ 192.168.1.1（00:00:5e:00:53:01）、
+// 攻撃者の端末（00:00:5e:00:53:66）、社外のサーバ 203.0.113.10
+const PC_MAC = '00:00:5e:00:53:0a'
+const GW_MAC = '00:00:5e:00:53:01'
+const ATK_MAC = '00:00:5e:00:53:66'
+const BROADCAST = 'ff:ff:ff:ff:ff:ff'
+
 export const arp = defineScenario({
   id: 'arp',
   name: '社内LAN',
@@ -17,6 +25,34 @@ export const arp = defineScenario({
     attack: '攻撃者が偽のARP応答を送り続け、PCとゲートウェイの間の通信を自分の端末に経由させます（ARPスプーフィング）。',
     defense: 'L2スイッチのDAI（Dynamic ARP Inspection）が、DHCPスヌーピングで記録した対応と合わないARPを捨てます。',
   },
+  states: [
+    {
+      id: 'pc-arp',
+      title: 'PCのARPテーブル',
+      columns: ['IPアドレス', 'MACアドレス'],
+      initial: {
+        attack: [['192.168.1.1', `${GW_MAC}（ゲートウェイ）`]],
+        defense: [['192.168.1.1', `${GW_MAC}（ゲートウェイ）`]],
+      },
+    },
+    {
+      id: 'gw-arp',
+      title: 'ゲートウェイのARPテーブル',
+      columns: ['IPアドレス', 'MACアドレス'],
+      initial: {
+        attack: [['192.168.1.10', `${PC_MAC}（PC）`]],
+        defense: [['192.168.1.10', `${PC_MAC}（PC）`]],
+      },
+    },
+    {
+      id: 'sw-bind',
+      title: 'L2スイッチの記録（DHCPスヌーピング）',
+      columns: ['ポート', 'MACアドレス・IPアドレス'],
+      modes: ['defense'],
+      initial: { defense: [['1（ゲートウェイ）', `${GW_MAC}・192.168.1.1（ARP ACLで登録）`]] },
+    },
+    { id: 'sw-log', title: 'L2スイッチのログ（DAI）', columns: ['届いたARP', '処理'], modes: ['defense'] },
+  ],
   steps: {
     normal: [
       {
@@ -31,6 +67,18 @@ export const arp = defineScenario({
           ['問い合わせ', '192.168.1.1 を持つ機器のMACアドレスは？'],
         ],
         note: 'IPアドレスが分かっていても、同じLANの中で実際に届けるにはMACアドレスが必要です。PCはARP要求を、LAN全体にブロードキャストします。',
+        send: 'PC：ゲートウェイ（192.168.1.1）のMACアドレスがARPテーブルにないので、宛先MACをブロードキャストにして、ARP要求を送ります。',
+        via: { sw: 'L2SW：宛先がブロードキャストなので、受け取ったポート以外のすべてのポートへ流します。攻撃者の端末にも届きます。' },
+        receive: 'ゲートウェイ：問われているIPアドレスが自分なので、応答します。ついでに、PCのIPアドレスとMACアドレスの対応を、自分のARPテーブルに記録します。',
+        wire: {
+          app: 'ARP（要求）',
+          srcMac: PC_MAC,
+          dstMac: BROADCAST,
+          noIp: true,
+          focus: ['l2'],
+          remark: 'ARPはIPパケットではなく、Ethernetのフレームで直接運ばれます。',
+        },
+        changes: [{ table: 'gw-arp', key: '192.168.1.10', value: `${PC_MAC}（PC）` }],
       },
       {
         from: 'gw',
@@ -44,6 +92,11 @@ export const arp = defineScenario({
         ],
         note: 'PCは、この対応をARPテーブル（ARPキャッシュ）に一定時間保存します。',
         point: 'ARPには認証の仕組みがありません。多くの端末は、自分が要求していないARP応答でも受け入れて、ARPテーブルを書き換えます。',
+        send: 'ゲートウェイ：「192.168.1.1 は 00:00:5e:00:53:01」と、PCだけに（ユニキャストで）答えます。',
+        via: { sw: 'L2SW：宛先MACアドレスを自分の表（MACアドレステーブル）で探し、PCがつながるポートにだけ送ります。' },
+        receive: 'PC：答えをARPテーブルに記録します。ARPには認証がないので、内容が正しいかは確かめません。',
+        wire: { app: 'ARP（応答）', srcMac: GW_MAC, dstMac: PC_MAC, noIp: true, focus: ['l2'] },
+        changes: [{ table: 'pc-arp', key: '192.168.1.1', value: `${GW_MAC}（ゲートウェイ）` }],
       },
       {
         from: 'pc',
@@ -56,6 +109,22 @@ export const arp = defineScenario({
           ['宛先IP', '203.0.113.10（社外のサーバ）'],
         ],
         note: '宛先IPは社外のサーバのままで、宛先MACだけをゲートウェイにして送ります。ゲートウェイが、その先へ転送します。',
+        send: 'PC：宛先IPは社外のサーバ（203.0.113.10）のまま、宛先MACだけをゲートウェイにしたフレームを作って送ります。',
+        via: { sw: 'L2SW：宛先MAC（ゲートウェイ）を見て、ゲートウェイのポートへ送ります。' },
+        receive: 'ゲートウェイ：宛先MACが自分なので受け取ります。宛先IPアドレスを見て、インターネットへ転送します。',
+        wire: {
+          app: 'HTTPS などの通信',
+          transport: 'TCP',
+          srcPort: '50500',
+          dstPort: '443',
+          srcIp: '192.168.1.10',
+          dstName: '社外のサーバ',
+          dstIp: '203.0.113.10',
+          srcMac: PC_MAC,
+          dstMac: GW_MAC,
+          focus: ['l2', 'l3'],
+          remark: '宛先IPアドレス（最終的な宛先）と、宛先MACアドレス（次に渡す相手）が違う点に注目してください。',
+        },
       },
     ],
     attack: [
@@ -70,6 +139,11 @@ export const arp = defineScenario({
           ['送り方', '要求がなくても繰り返し送る（Gratuitous ARP を含む）'],
         ],
         note: 'PCのARPテーブルで、ゲートウェイのMACアドレスが攻撃者のものに書き換わります。',
+        send: '攻撃者：要求されていないのに、「192.168.1.1 は 00:00:5e:00:53:66」というARP応答をPCへ送ります。',
+        via: { sw: 'L2SW：中身は確かめずに、宛先MAC（PC）のポートへ送ります。' },
+        receive: 'PC：要求していない応答でも受け入れて、ゲートウェイのMACアドレスを攻撃者のものに書き換えてしまいます。',
+        wire: { app: 'ARP（偽の応答）', srcMac: ATK_MAC, dstMac: PC_MAC, noIp: true, focus: ['l7'] },
+        changes: [{ table: 'pc-arp', key: '192.168.1.1', value: `${ATK_MAC}（攻撃者）`, tone: 'attack' }],
       },
       {
         from: 'atk',
@@ -81,6 +155,11 @@ export const arp = defineScenario({
           ['内容', '192.168.1.10 は 00:00:5e:00:53:66（攻撃者）'],
         ],
         note: '戻りの通信も攻撃者を通るように、ゲートウェイ側もだまします。',
+        send: '攻撃者：ゲートウェイにも、「192.168.1.10 は 00:00:5e:00:53:66」と送ります。',
+        via: { sw: 'L2SW：宛先MAC（ゲートウェイ）のポートへ送ります。' },
+        receive: 'ゲートウェイ：PCのMACアドレスを、攻撃者のものに書き換えてしまいます。',
+        wire: { app: 'ARP（偽の応答）', srcMac: ATK_MAC, dstMac: GW_MAC, noIp: true, focus: ['l7'] },
+        changes: [{ table: 'gw-arp', key: '192.168.1.10', value: `${ATK_MAC}（攻撃者）`, tone: 'attack' }],
       },
       {
         from: 'pc',
@@ -93,6 +172,21 @@ export const arp = defineScenario({
           ['宛先IP', '203.0.113.10（社外のサーバ）'],
         ],
         note: 'PCは正しいゲートウェイに送っているつもりですが、実際には攻撃者の端末に届きます。',
+        send: 'PC：ARPテーブルに従って、宛先MACを 00:00:5e:00:53:66（攻撃者）にして送ります。',
+        via: { sw: 'L2SW：宛先MACを見て、攻撃者の端末のポートへ送ります。スイッチは、表のとおりに正しく動いているだけです。' },
+        receive: '攻撃者：PCの通信を受け取ります。暗号化されていなければ、中身を読めます。',
+        wire: {
+          app: 'HTTP などの通信',
+          transport: 'TCP',
+          srcPort: '50500',
+          dstPort: '80',
+          srcIp: '192.168.1.10',
+          dstName: '社外のサーバ',
+          dstIp: '203.0.113.10',
+          srcMac: PC_MAC,
+          dstMac: ATK_MAC,
+          focus: ['l2'],
+        },
       },
       {
         from: 'atk',
@@ -106,6 +200,23 @@ export const arp = defineScenario({
         ],
         note: '攻撃者が転送を続けるので、利用者は通信が経由されていることに気付きにくくなります。これが、LANの中での中間者攻撃です。',
         point: 'ARPスプーフィングは、同じLAN（同じブロードキャストドメイン）の中でしか成立しません。攻撃者は、マルウェアに感染した社内PCや、持ち込まれた不正な端末です。',
+        send: '攻撃者：中身を読み取り、必要なら書き換えてから、本物のゲートウェイのMACアドレス宛てに送り直します。',
+        via: { sw: 'L2SW：宛先MAC（ゲートウェイ）のポートへ送ります。' },
+        receive: 'ゲートウェイ：いつもどおりインターネットへ転送します。PCもゲートウェイも、経由されたことに気付きません。',
+        wire: {
+          app: 'HTTP などの通信',
+          transport: 'TCP',
+          srcPort: '50500',
+          dstPort: '80',
+          srcName: 'PC',
+          srcIp: '192.168.1.10',
+          dstName: '社外のサーバ',
+          dstIp: '203.0.113.10',
+          srcMac: ATK_MAC,
+          dstMac: GW_MAC,
+          focus: ['l2'],
+          remark: '送信元IPアドレスはPCのままです。攻撃者は、MACアドレスだけを付け替えて中継します。',
+        },
       },
     ],
     defense: [
@@ -121,6 +232,23 @@ export const arp = defineScenario({
           ['固定IPの機器', 'ゲートウェイの対応は ARP ACL として手動で登録'],
         ],
         note: 'DHCPスヌーピングを有効にしたL2スイッチは、DHCPのやりとりを見て、どのポートの端末にどのIPアドレスが割り当てられたかを記録します。',
+        send: 'PC：起動したときに、DHCPでIPアドレスを要求します。',
+        via: { sw: 'L2SW：DHCPのやりとりを確かめて（DHCPスヌーピング）、どのポートの端末に、どのIPアドレスが割り当てられたかを記録します。' },
+        receive: 'ゲートウェイ（DHCPサーバ）：PCに 192.168.1.10 を割り当てます。',
+        wire: {
+          app: 'DHCP',
+          transport: 'UDP',
+          srcPort: '68',
+          dstPort: '67',
+          srcName: 'PC（まだIPアドレスがない）',
+          srcIp: '0.0.0.0',
+          dstName: 'LAN全体（ブロードキャスト）',
+          dstIp: '255.255.255.255',
+          srcMac: PC_MAC,
+          dstMac: BROADCAST,
+          remark: '実際には DISCOVER → OFFER → REQUEST → ACK の4回のやりとりがあり、L2スイッチは最後のACKを見て記録します。',
+        },
+        changes: [{ table: 'sw-bind', key: '3（PC）', value: `${PC_MAC}・192.168.1.10`, tone: 'defense', at: 'sw' }],
       },
       {
         from: 'atk',
@@ -134,6 +262,17 @@ export const arp = defineScenario({
           ['処理', '転送せずに破棄し、ログに記録'],
         ],
         note: 'DAIは、信頼しないポートから届いたARPを、記録した対応と照合します。合わないものは転送せずに捨てるので、PCにもゲートウェイにも届きません。',
+        send: '攻撃者：「192.168.1.1 は 00:00:5e:00:53:66」という偽のARP応答を、PCへ送ろうとします。',
+        receive: 'L2SW：DAIが、信頼しないポートから届いたARPの中身を、記録と照合します。192.168.1.1 は 00:00:5e:00:53:01 のはずなので、転送せずに捨てて、ログに残します。',
+        wire: { app: 'ARP（偽の応答）', srcMac: ATK_MAC, dstMac: PC_MAC, noIp: true, focus: ['l7'] },
+        changes: [
+          {
+            table: 'sw-log',
+            key: 'ポート5：192.168.1.1 は :66',
+            value: '記録と合わないので破棄',
+            tone: 'defense',
+          },
+        ],
       },
       {
         from: 'pc',
@@ -146,6 +285,21 @@ export const arp = defineScenario({
         ],
         note: 'PCのARPテーブルは正しいままなので、通信は本物のゲートウェイに届きます。',
         point: '端末やゲートウェイに静的ARPエントリを登録する方法もあります。また、TLSなどで通信を暗号化しておけば、経由されても中身は読まれません（対策の多層化）。',
+        send: 'PC：ARPテーブルは正しいままなので、宛先MACを本物のゲートウェイにして送ります。',
+        via: { sw: 'L2SW：宛先MAC（ゲートウェイ）のポートへ送ります。' },
+        receive: 'ゲートウェイ：受け取って、インターネットへ転送します。',
+        wire: {
+          app: 'HTTPS などの通信',
+          transport: 'TCP',
+          srcPort: '50500',
+          dstPort: '443',
+          srcIp: '192.168.1.10',
+          dstName: '社外のサーバ',
+          dstIp: '203.0.113.10',
+          srcMac: PC_MAC,
+          dstMac: GW_MAC,
+          focus: ['l2'],
+        },
       },
     ],
   },

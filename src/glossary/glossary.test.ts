@@ -55,11 +55,14 @@ describe('用語の検出', () => {
   it('長い別名を優先する', () => {
     expect(termIdsIn('CSRFトークンを確かめる')).toEqual(['csrf-token'])
     expect(termIdsIn('ARPスプーフィングとARP')).toEqual(['arp-spoofing', 'arp'])
+    expect(termIdsIn('公開鍵基盤と公開鍵')).toEqual(['pki', 'public-key'])
+    expect(termIdsIn('サーバ証明書と証明書')).toEqual(['server-certificate', 'certificate'])
+    expect(termIdsIn('送信元ポートのランダム化と送信元ポート')).toEqual(['source-port-randomization', 'port-number'])
   })
 
   it('英数字の途中にある場合は一致させない', () => {
     expect(termIdsIn('SANS研究所')).toEqual([])
-    expect(termIdsIn('証明書のSANを確認')).toEqual(['san'])
+    expect(termIdsIn('サーバのSANを確認')).toEqual(['san'])
     expect(termIdsIn('DKIM-Signature ヘッダ')).toEqual(['dkim'])
   })
 })

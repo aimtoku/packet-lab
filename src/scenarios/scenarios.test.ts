@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { Mode } from '../types'
+import { changeSubIndex } from '../playback/state'
+import { stopIndex, subStepsFor } from '../playback/substeps'
 import { BASE_NODES } from '../topology/layout'
-import { attackerNodes, findRoute, nodesFor } from '../topology/route'
+import { attackerNodes, findRoute, nodesFor, stepRoute } from '../topology/route'
 import { scenarios } from './index'
 
 const MODES: Mode[] = ['normal', 'attack', 'defense']
@@ -68,6 +70,79 @@ describe('シナリオのデータ', () => {
           for (const step of scenario.steps[mode]) {
             expect(step.fields.length, step.title).toBeGreaterThan(0)
             expect(step.note.trim(), step.title).not.toBe('')
+          }
+        }
+      })
+
+      it('機器から機器へ送るステップには、パケットの層と、宛先で起きることの説明がある', () => {
+        for (const mode of MODES) {
+          for (const step of scenario.steps[mode]) {
+            if (step.from === step.to) {
+              expect(step.receive, `${mode} ${step.title}`).toBeDefined()
+              continue
+            }
+            expect(step.wire, `${mode} ${step.title}`).toBeDefined()
+            expect(step.send, `${mode} ${step.title}`).toBeDefined()
+            expect(step.receive, `${mode} ${step.title}`).toBeDefined()
+          }
+        }
+      })
+
+      it('経由する機器の説明は、実際にパケットが経由する機器に書かれている', () => {
+        for (const mode of MODES) {
+          for (const step of scenario.steps[mode]) {
+            const route = stepRoute(scenario, nodes, step.from, step.to)
+            const end = stopIndex(route, step) ?? route.length - 1
+            const middle = route.slice(1, end)
+            for (const id of Object.keys(step.via ?? {})) expect(middle, `${mode} ${step.title}：${id}`).toContain(id)
+          }
+        }
+      })
+
+      it('阻止する機器は、阻止するステップの経路の上にある', () => {
+        for (const mode of MODES) {
+          for (const step of scenario.steps[mode]) {
+            if (!step.blockedAt) continue
+            expect(step.kind, step.title).toBe('blocked')
+            expect(stepRoute(scenario, nodes, step.from, step.to), step.title).toContain(step.blockedAt)
+          }
+        }
+      })
+
+      it('区切りは「送信 → 経由 → 受信（または阻止）」の順に並ぶ', () => {
+        for (const mode of MODES) {
+          for (const step of scenario.steps[mode]) {
+            const subs = subStepsFor(scenario, nodes, step)
+            expect(subs.length, step.title).toBeGreaterThan(0)
+            const last = subs[subs.length - 1]!
+            expect(last.kind, step.title).toBe(step.kind === 'blocked' ? 'blocked' : 'receive')
+            if (step.from !== step.to) expect(subs[0]!.kind, step.title).toBe('send')
+            // 経路の上を、後戻りせずに進む
+            subs.forEach((s, i) => i > 0 && expect(s.routeIndex, step.title).toBeGreaterThanOrEqual(subs[i - 1]!.routeIndex))
+          }
+        }
+      })
+
+      it('状態の変化は、そのモードで表示する表に書き込み、指定した機器で起きる', () => {
+        for (const mode of MODES) {
+          const tables = (scenario.states ?? []).filter((t) => !t.modes || t.modes.includes(mode)).map((t) => t.id)
+          for (const step of scenario.steps[mode]) {
+            const subs = subStepsFor(scenario, nodes, step)
+            for (const change of step.changes ?? []) {
+              expect(tables, `${mode} ${step.title}：${change.table}`).toContain(change.table)
+              if (change.at) {
+                const at = changeSubIndex(change, subs)
+                expect(subs[at]?.node, `${mode} ${step.title}：${change.key} の at`).toBe(change.at)
+              }
+            }
+          }
+        }
+      })
+
+      it('状態の表の最初の行は、表示するモードにだけ書かれている', () => {
+        for (const table of scenario.states ?? []) {
+          for (const mode of Object.keys(table.initial ?? {}) as Mode[]) {
+            expect(!table.modes || table.modes.includes(mode), `${table.id} ${mode}`).toBe(true)
           }
         }
       })

@@ -30,6 +30,9 @@ export function Home() {
           </li>
         </ol>
         <p className="howto-note">
+          再生すると、パケットが機器に着くたびに止まって、そこで何が起きているか、パケットの中身、機器の中の状態（ARPテーブルやDNSのキャッシュなど）の変化を説明します。
+        </p>
+        <p className="howto-note">
           シナリオの画面では、用語一覧（{TERMS.length}語）の用語を押すと、その用語が出てくるステップに図と説明が移動します。
         </p>
       </section>

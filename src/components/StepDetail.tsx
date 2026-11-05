@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
 import type { Mode, Scenario, StepKind } from '../types'
-import { nodesFor, stepRoute } from '../topology/route'
+import type { SubStep } from '../playback/substeps'
+import { PacketLayers } from './PacketLayers'
 import { TermText } from './TermText'
 
 export const KIND_LABEL: Record<StepKind, string> = {
@@ -21,27 +21,33 @@ interface Props {
   scenario: Scenario
   mode: Mode
   index: number
+  subs: readonly SubStep[]
+  sub: number
+  /** 区切りを選んだとき */
+  onSub: (sub: number) => void
   onPrev: () => void
   onNext: () => void
   activeTerm: string | null
   onTerm: (termId: string) => void
 }
 
-export function StepDetail({ scenario, mode, index, onPrev, onNext, activeTerm, onTerm }: Props) {
+/** 「FW：〜」のような説明文を、機器の名前と内容に分ける */
+function splitWho(text: string): [string | null, string] {
+  const at = text.indexOf('：')
+  return at > 0 && at <= 14 ? [text.slice(0, at), text.slice(at + 1)] : [null, text]
+}
+
+export function StepDetail({ scenario, mode, index, subs, sub, onSub, onPrev, onNext, activeTerm, onTerm }: Props) {
   const steps = scenario.steps[mode]
   const step = steps[index]
-  const nodes = useMemo(() => nodesFor(scenario), [scenario])
   if (!step) return null
 
   const actorName = (id: string) => scenario.actors.find((a) => a.id === id)?.name ?? id
-  const hops = stepRoute(scenario, nodes, step.from, step.to)
-    .map((id) => nodes[id])
-    .filter((n) => n && n.type !== 'switch' && n.name)
-    .map((n) => n!.name)
   const isLast = index === steps.length - 1
+  const text = (t: string) => <TermText text={t} activeTerm={activeTerm} onTerm={onTerm} />
 
   return (
-    <section className="detail" aria-live="polite" aria-label="ステップの詳細">
+    <section className="detail" aria-label="ステップの詳細">
       <header className={`detail-head k-${step.kind}`}>
         <div className="detail-meta">
           <span>STEP {String(index + 1).padStart(2, '0')}</span>
@@ -49,52 +55,49 @@ export function StepDetail({ scenario, mode, index, onPrev, onNext, activeTerm, 
         </div>
         <h2>{step.title}</h2>
         <p className="detail-route">
-          {actorName(step.from)} → {actorName(step.to)}
+          {step.from === step.to ? `${actorName(step.from)}の中の処理` : `${actorName(step.from)} → ${actorName(step.to)}`}
         </p>
       </header>
       <div className="detail-body">
-        {hops.length > 1 && (
-          <p className="hops">
-            <span className="hops-label">経路</span>
-            {hops.map((name, i) => (
-              <span key={i} className="hop-item">
-                {i > 0 && <span aria-hidden="true">›</span>}
-                <span className="hop-name">{name}</span>
-              </span>
-            ))}
-          </p>
-        )}
-        <div className="fields">
-          <table>
-            <tbody>
-              {step.fields.map(([key, value], i) => (
-                <tr key={i}>
-                  <th scope="row">
-                    <TermText text={key} activeTerm={activeTerm} onTerm={onTerm} />
-                  </th>
-                  <td>
-                    <TermText text={value} activeTerm={activeTerm} onTerm={onTerm} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="note">
-          <TermText text={step.note} activeTerm={activeTerm} onTerm={onTerm} />
-        </p>
+        <section aria-labelledby="timeline-title">
+          <h3 id="timeline-title" className="sub-title">
+            このステップで起きていること
+          </h3>
+          <ol className="timeline">
+            {subs.map((s, i) => {
+              const state = i < sub ? 'done' : i === sub ? 'now' : 'todo'
+              const [who, what] = splitWho(s.text)
+              return (
+                <li key={i} className={`tl-item ${state} k-${s.kind}`} aria-current={i === sub ? 'step' : undefined}>
+                  <button
+                    type="button"
+                    className="tl-mark"
+                    onClick={() => onSub(i)}
+                    aria-label={`${i + 1}番目を表示${who ? `（${who}）` : ''}`}
+                  >
+                    {state === 'done' ? '✓' : i + 1}
+                  </button>
+                  <p className="tl-text">
+                    {who && <strong className="tl-who">{who}</strong>}
+                    {text(what)}
+                  </p>
+                </li>
+              )
+            })}
+          </ol>
+        </section>
+        <PacketLayers scenario={scenario} step={step} activeTerm={activeTerm} onTerm={onTerm} />
+        <p className="note">{text(step.note)}</p>
         {step.point && (
           <div className="point">
             <span className="point-label">支援士ポイント</span>
-            <p>
-              <TermText text={step.point} activeTerm={activeTerm} onTerm={onTerm} />
-            </p>
+            <p>{text(step.point)}</p>
           </div>
         )}
       </div>
       <footer className="detail-nav">
         <span className="count">
-          {index + 1} / {steps.length}
+          STEP {index + 1} / {steps.length}
         </span>
         <button type="button" onClick={onPrev} disabled={index === 0}>
           前へ
