@@ -1,18 +1,20 @@
-import type { NodeId, OptionalNodeId, Scenario } from '../types'
+import type { Mode, NodeId, OptionalNodeId, Scenario } from '../types'
 import { BASE_NODES, EDGES, type NodeSpec } from './layout'
 
 export type NodeMap = Partial<Record<NodeId, NodeSpec>>
 
-const isOptionalNode = (id: NodeId): id is OptionalNodeId => id === 'ext1' || id === 'ext2' || id === 'lan2'
+const isOptionalNode = (id: NodeId): id is OptionalNodeId => id === 'ext1' || id === 'ext2' || id === 'lan2' || id === 'soc'
 
 /** シナリオで表示する機器を、名前の書き換えも含めて組み立てる */
 export function nodesFor(scenario: Scenario): NodeMap {
-  const { devices, labels, mobile, hidden } = scenario.topology
+  const { devices, labels, mobile, hidden, map } = scenario.topology
+  const placed = new Set<NodeId>(Object.values(map))
   const nodes: NodeMap = {}
   for (const id of Object.keys(BASE_NODES) as NodeId[]) {
     if (hidden?.includes(id)) continue
     const optional = isOptionalNode(id)
-    if (optional && !devices?.[id]) continue
+    // シナリオで種類を決める機器（ext1・ext2・lan2）と、だれかが配置された席（soc）だけを表示する
+    if (optional && !devices?.[id] && !(id === 'soc' && placed.has(id))) continue
     if ((id === 'laptop' || id === 'ap' || id === 'fakeap') && !mobile) continue
     const node: NodeSpec = { ...BASE_NODES[id] }
     const device = optional ? devices?.[id] : undefined
@@ -63,10 +65,21 @@ export function findRoute(nodes: NodeMap, from: NodeId, to: NodeId, avoid: reado
   return path
 }
 
-/** シナリオの1ステップが、構成図上のどの機器を通るか */
+/**
+ * シナリオの1ステップが、構成図上のどの機器を通るか。
+ * ケーブルでつながっていない相手（CSIRTへの連絡など）は、直接結ぶ。
+ */
 export function stepRoute(scenario: Scenario, nodes: NodeMap, from: string, to: string): NodeId[] {
   const a = scenario.topology.map[from]
   const b = scenario.topology.map[to]
   if (!a || !b) return []
   return findRoute(nodes, a, b, attackerNodes(scenario)) ?? [a, b]
+}
+
+/** そのモードでは登場しない人（CSIRTは事後対応だけ）の席。構成図にもシーケンス図にも出さない */
+export function offstageNodes(scenario: Scenario, mode: Mode): NodeId[] {
+  return scenario.actors.flatMap((a) => {
+    const node = scenario.topology.map[a.id]
+    return a.onlyIn && !a.onlyIn.includes(mode) && node ? [node] : []
+  })
 }

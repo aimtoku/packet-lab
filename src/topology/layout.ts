@@ -30,6 +30,8 @@ export const BASE_NODES: Record<NodeId, NodeSpec> = {
   laptop: { x: 214, y: 334, type: 'laptop', name: 'ノートPC', sub: '' },
   ap: { x: 272, y: 316, type: 'ap', name: '公衆AP', sub: '' },
   fakeap: { x: 326, y: 334, type: 'ap', name: '偽AP', sub: '' },
+  // CSIRTの席。ネットワークの機器ではないので、ケーブルではつながない（連絡や指示は直線で表す）
+  soc: { x: 152, y: 224, type: 'team', name: 'CSIRT', sub: '' },
 }
 
 /** ケーブル（無線を含む）のつながり */
@@ -76,6 +78,7 @@ export const ANCHOR_HEIGHT: Record<DeviceType, number> = {
   fw: 12,
   ap: 3,
   cloud: 0,
+  team: 10,
 }
 
 /** 機器のてっぺんの高さ（バッジを置く位置） */
@@ -87,6 +90,7 @@ export const TOP_HEIGHT: Record<DeviceType, number> = {
   fw: 24,
   ap: 22,
   cloud: 34,
+  team: 25,
 }
 
 export type Point = readonly [number, number]

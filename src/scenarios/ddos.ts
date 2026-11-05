@@ -1,4 +1,5 @@
 import { defineScenario } from '../types'
+import { CSIRT, IR_TABLE, ir } from './incident'
 
 // DNS（UDP）：DNSリフレクション攻撃（DDoS）
 // 図中のIPアドレス（198.51.100.0/24、203.0.113.0/24）とドメイン（example.*）は、説明用に予約されたもので、実在のサーバを指しません。
@@ -22,18 +23,29 @@ export const ddos = defineScenario({
     { id: 'res', name: 'DNSサーバ', sub: '踏み台にされる側' },
     { id: 'isp', name: 'ISP', sub: 'DDoS対策' },
     { id: 'web', name: 'Webサーバ', sub: '被害者' },
+    CSIRT,
   ],
   summary: {
     normal: 'UDPで送るDNSの問合せには、送信元を確かめる手順がありません。応答は、問合せに書かれた送信元IPアドレスへそのまま返ります。',
     attack: '攻撃者が送信元を偽装して、DNSサーバに大量に問い合わせます。何十倍にも大きくなった応答が被害者に集中し、回線やサーバがあふれます（DNSリフレクション攻撃）。',
     defense: 'DNSサーバ側で外部からの再帰問合せを断り、応答の数を制限します。被害者側は、上流のISPやDDoS対策サービスで攻撃の通信を捨ててもらいます。',
+    incident:
+      'DNSリフレクション攻撃で、Webサービスが止まったあとの対応です。自社の機器だけでは防げないので、ISPと連携して上流で通信を止めてもらいます。',
   },
   states: [
     {
       id: 'line',
       title: '被害者側の回線とサービス',
       columns: ['項目', '状態'],
-      initial: { normal: CALM, attack: CALM, defense: CALM },
+      initial: {
+        normal: CALM,
+        attack: CALM,
+        defense: CALM,
+        incident: [
+          ['回線の使用率', '100%（あふれている）', 'attack'],
+          ['Webサービス', '停止（正規の利用者がアクセスできない）', 'attack'],
+        ],
+      },
     },
     {
       id: 'res',
@@ -51,6 +63,7 @@ export const ddos = defineScenario({
         ],
       },
     },
+    IR_TABLE,
   ],
   steps: {
     normal: [
@@ -272,6 +285,129 @@ export const ddos = defineScenario({
         changes: [{ table: 'line', key: 'Webサービス', value: '正常（サービスを続けられる）', tone: 'defense' }],
       },
     ],
+    incident: [
+      {
+        from: 'web',
+        to: 'csirt',
+        kind: 'response',
+        phase: 'detect',
+        label: 'アラート',
+        title: 'サービスの停止を検知する',
+        fields: [
+          ['きっかけ', '監視ツール：Webサーバの応答が返らない、回線の使用率100%'],
+          ['利用者から', '「サイトが開かない」という問合せ'],
+        ],
+        note: '外部からサイトにアクセスして確かめる監視を入れておくと、回線のあふれにすぐ気付けます。',
+        send: 'Webサーバ：監視ツールが、応答が返らないことと回線のあふれを検知し、CSIRTに知らせます。',
+        receive: 'CSIRT：サービスの停止として、対応を始めます。',
+        changes: [ir('detect', 'Webサービスの停止と回線のあふれを検知')],
+      },
+      {
+        from: 'csirt',
+        to: 'csirt',
+        kind: 'response',
+        phase: 'triage',
+        label: 'トリアージ',
+        title: '攻撃の種類を見極める',
+        fields: [
+          ['通信の特徴', '送信元ポート53（DNS）からの、大きなUDPの応答が大量に届いている'],
+          ['判断', '自社は問い合わせていない → DNSリフレクション攻撃'],
+          ['影響', 'Webサービスの停止（可用性が失われている）。優先度：高'],
+        ],
+        note: '通信の特徴（プロトコル、送信元ポート、大きさ）から攻撃の種類が分かれば、ISPに頼む遮断の条件も決まります。',
+        receive: 'CSIRT：FWのログから、問い合わせていないDNSの応答が大量に届いていると分かり、DNSリフレクション攻撃と判断します。',
+        changes: [ir('triage', 'DNSリフレクション攻撃と判断。優先度：高')],
+      },
+      {
+        from: 'csirt',
+        to: 'isp',
+        kind: 'response',
+        phase: 'contain',
+        label: '遮断を依頼',
+        title: 'ISPに、上流での遮断を頼む',
+        fields: [
+          ['依頼先', '契約しているISP（またはDDoS対策サービス）'],
+          ['依頼内容', '203.0.113.10 宛ての、送信元ポート53のUDPを上流で遮断'],
+          ['準備しておくもの', 'ISPの緊急連絡先と、依頼の手順'],
+        ],
+        note: '自社の回線そのものが埋まっているので、自社の機器では止められません。上流のISPに、あらかじめ決めた手順で依頼します。',
+        send: 'CSIRT：ISPの緊急連絡先に連絡し、上流での遮断を依頼します。',
+        receive: 'ISP：攻撃の通信を、被害者の回線に届く前に捨て始めます。',
+        changes: [
+          { table: 'line', key: '回線の使用率', value: '10%（攻撃の通信は上流で遮断）', tone: 'defense' },
+          ir('contain', 'ISPに依頼し、上流で遮断'),
+        ],
+      },
+      {
+        from: 'csirt',
+        to: 'web',
+        kind: 'response',
+        phase: 'preserve',
+        label: 'ログを保全',
+        title: '攻撃の記録を残す',
+        fields: [
+          ['保全するもの', 'FWとサーバのログ、通信量の記録（送信元、量、時刻）'],
+          ['使い道', '被害の届出、ISPとの調整、対策の見直し'],
+        ],
+        note: 'いつ始まり、どれだけの量だったかの記録は、被害の届出や、対策サービスの規模を決める根拠になります。',
+        send: 'CSIRT：FWとサーバのログ、通信量の記録を取り出します。',
+        receive: 'Webサーバ：ログを書き出します。攻撃の始まりと終わり、量の変化が分かります。',
+        changes: [ir('preserve', 'FW・サーバのログと通信量の記録を保全')],
+      },
+      {
+        from: 'isp',
+        to: 'web',
+        kind: 'response',
+        phase: 'recover',
+        label: 'サービス再開',
+        title: '正規の通信が届くようになる',
+        fields: [
+          ['ISP', '攻撃の通信だけを捨て、正規の通信は転送'],
+          ['確認', 'サイトが表示できることを、外部から確認'],
+        ],
+        note: '攻撃が続いていても、上流で捨ててもらえれば、サービスを続けられます。',
+        send: 'ISP：攻撃と判定しなかった通信だけを、被害者へ転送します。',
+        via: { fw: 'FW：Webサーバへの443番ポート（HTTPS）の通信なので、通します。' },
+        receive: 'Webサーバ：正規の利用者へのサービスを再開します。',
+        wire: { app: 'HTTPS（正規の利用者の通信）', transport: 'TCP', srcPort: '50600', dstPort: '443', srcName: '正規の利用者', dstIp: WEB },
+        changes: [
+          { table: 'line', key: 'Webサービス', value: '再開（正規の通信だけが届く）', tone: 'defense' },
+          ir('recover', 'サービスを再開し、外部から表示を確認'),
+        ],
+      },
+      {
+        from: 'csirt',
+        to: 'csirt',
+        kind: 'response',
+        phase: 'report',
+        label: '報告',
+        title: '利用者と関係者に知らせる',
+        fields: [
+          ['利用者へ', '障害の発生と復旧を、サイトやSNSで知らせる'],
+          ['社内', '経営層へ報告（停止した時間と、事業への影響）'],
+          ['社外', '警察へ被害を相談し、JPCERT/CC へ報告'],
+        ],
+        note: 'サービスが止まったことの告知も、対応の一部です。復旧の見込みが分かれば、それも知らせます。',
+        receive: 'CSIRT：停止した時間と影響をまとめて、経営層に報告します。利用者には、復旧したことを知らせます。',
+        changes: [ir('report', '利用者へ告知し、経営層、警察、JPCERT/CCへ')],
+      },
+      {
+        from: 'csirt',
+        to: 'csirt',
+        kind: 'response',
+        phase: 'improve',
+        label: '再発防止',
+        title: '次の攻撃に備える',
+        fields: [
+          ['常時の対策', 'DDoS対策サービスやCDNの利用'],
+          ['手順', 'ISPへの依頼の手順と連絡先を、手順書にまとめる'],
+          ['自社の確認', '自社のDNSサーバがオープンリゾルバになっていないか'],
+        ],
+        note: 'DDoSは何度も繰り返されることが多い攻撃です。次に備えて、対策サービスと手順を整えます。',
+        receive: 'CSIRT：DDoS対策サービスと契約し、ISPへの依頼の手順を手順書にまとめます。',
+        changes: [ir('improve', 'DDoS対策サービスの契約、ISPへの依頼の手順書')],
+      },
+    ],
   },
   points: [
     'DNSリフレクション攻撃は、UDPでの送信元IPアドレスの偽装と応答の増幅を組み合わせたDDoS攻撃。NTPやmemcachedなど、UDPのほかのサービスも悪用される',
@@ -280,8 +416,14 @@ export const ddos = defineScenario({
     '送信元の偽装を防ぐ対策：ISPの入口でのイングレスフィルタリング（利用者から届くパケットのうち、割り当てていない送信元IPアドレスを持つものを捨てる）',
     '被害者側の対策：ISPやDDoS対策サービスと連携し、自社の回線より手前で遮断する',
   ],
+  incidentPoints: [
+    'DDoSでは自社の回線が埋まるため、自社の機器だけでは防げない。ISPやDDoS対策サービスへの依頼の手順を事前に決めておく',
+    '通信の特徴（送信元ポート、プロトコル、大きさ）から、攻撃の種類を見極める',
+    'サービスの停止は可用性の問題。利用者への告知も、対応の一部',
+    '自社のDNSサーバが踏み台（オープンリゾルバ）になっていないかも確かめる',
+  ],
   topology: {
-    map: { atk: 'ext2', res: 'ext1', isp: 'inet', web: 'web' },
+    map: { atk: 'ext2', res: 'ext1', isp: 'inet', web: 'web', csirt: 'soc' },
     devices: {
       ext1: { type: 'server', name: 'DNSサーバ', sub: '踏み台' },
       ext2: { type: 'laptop', name: '攻撃者', sub: 'ボットネット' },

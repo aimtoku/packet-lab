@@ -85,7 +85,7 @@ export function PacketLayers({ scenario, step, activeTerm, onTerm }: Props) {
     return (
       <section className="packet-section" aria-labelledby="packet-title">
         <h3 id="packet-title" className="sub-title">
-          {self ? '処理の内容' : 'パケットの中身'}
+          {step.kind === 'response' ? '対応の内容' : self ? '処理の内容' : 'パケットの中身'}
         </h3>
         {fields}
       </section>

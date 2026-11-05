@@ -28,6 +28,10 @@ export function Home() {
             <span className="dot k-defense" aria-hidden="true" />
             <strong>対策</strong>：どの機器のどの仕組みで、攻撃が止まるか
           </li>
+          <li>
+            <span className="dot k-incident" aria-hidden="true" />
+            <strong>事後対応</strong>：攻撃が成功してしまったとき、CSIRTがどの機器で何をするか（検知から再発防止まで）
+          </li>
         </ol>
         <p className="howto-note">
           再生すると、パケットが機器に着くたびに止まって、そこで何が起きているか、パケットの中身、機器の中の状態（ARPテーブルやDNSのキャッシュなど）の変化を説明します。

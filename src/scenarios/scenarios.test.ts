@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import type { Mode } from '../types'
+import { PHASES, type Mode } from '../types'
+import { sequenceActors } from '../components/Sequence'
 import { changeSubIndex } from '../playback/state'
 import { stopIndex, subStepsFor } from '../playback/substeps'
 import { BASE_NODES } from '../topology/layout'
 import { attackerNodes, findRoute, nodesFor, stepRoute } from '../topology/route'
 import { scenarios } from './index'
 
-const MODES: Mode[] = ['normal', 'attack', 'defense']
+const MODES: Mode[] = ['normal', 'attack', 'defense', 'incident']
 
 describe('シナリオのデータ', () => {
   it('IDが重ならない', () => {
@@ -43,12 +44,13 @@ describe('シナリオのデータ', () => {
         for (const id of scenario.topology.shields) expect(nodes[id], id).toBeDefined()
       })
 
-      it('すべてのステップで、ケーブルをたどる経路が見つかる', () => {
+      it('すべてのステップで、ケーブルをたどる経路が見つかる（CSIRTとの連絡や指示は除く）', () => {
         const avoid = attackerNodes(scenario)
         for (const mode of MODES) {
           scenario.steps[mode].forEach((step, i) => {
             const from = scenario.topology.map[step.from]!
             const to = scenario.topology.map[step.to]!
+            if (from === 'soc' || to === 'soc') return
             expect(findRoute(nodes, from, to, avoid), `${mode} #${i + 1} ${step.label}`).not.toBeNull()
           })
         }
@@ -81,7 +83,8 @@ describe('シナリオのデータ', () => {
               expect(step.receive, `${mode} ${step.title}`).toBeDefined()
               continue
             }
-            expect(step.wire, `${mode} ${step.title}`).toBeDefined()
+            // 事後対応の連絡や指示は、パケットではないので層の表示はなくてよい
+            if (step.kind !== 'response') expect(step.wire, `${mode} ${step.title}`).toBeDefined()
             expect(step.send, `${mode} ${step.title}`).toBeDefined()
             expect(step.receive, `${mode} ${step.title}`).toBeDefined()
           }
@@ -135,6 +138,49 @@ describe('シナリオのデータ', () => {
                 expect(subs[at]?.node, `${mode} ${step.title}：${change.key} の at`).toBe(change.at)
               }
             }
+          }
+        }
+      })
+
+      it('事後対応は、CSIRTが検知から再発防止まで、段階の順に対応する', () => {
+        const steps = scenario.steps.incident
+        expect(steps.some((s) => s.from === 'csirt' || s.to === 'csirt')).toBe(true)
+        for (const step of steps) {
+          expect(step.kind, step.title).toBe('response')
+          expect(step.phase, step.title).toBeDefined()
+        }
+        const order = steps.map((s) => PHASES.indexOf(s.phase!))
+        expect(order, '段階が後戻りしない').toEqual([...order].sort((a, b) => a - b))
+        expect(steps[0]?.phase).toBe('detect')
+        expect(steps[steps.length - 1]?.phase).toBe('improve')
+        expect(scenario.incidentPoints.length).toBeGreaterThan(0)
+      })
+
+      it('事後対応以外のモードには、段階を書かない', () => {
+        for (const mode of ['normal', 'attack', 'defense'] as const) {
+          for (const step of scenario.steps[mode]) expect(step.phase, step.title).toBeUndefined()
+        }
+      })
+
+      it('特定のモードだけに登場する人は、ほかのモードのステップに出てこない', () => {
+        for (const actor of scenario.actors) {
+          if (!actor.onlyIn) continue
+          for (const mode of MODES) {
+            if (actor.onlyIn.includes(mode)) continue
+            for (const step of scenario.steps[mode]) {
+              expect([step.from, step.to], `${actor.id} が ${mode} に出てくる`).not.toContain(actor.id)
+            }
+          }
+        }
+      })
+
+      it('シーケンス図の列は4つまでで、ステップに出てくる人がすべて並ぶ', () => {
+        for (const mode of MODES) {
+          const columns = sequenceActors(scenario, mode).map((a) => a.id)
+          expect(columns.length, mode).toBeLessThanOrEqual(4)
+          for (const step of scenario.steps[mode]) {
+            expect(columns, `${mode} ${step.title}`).toContain(step.from)
+            expect(columns, `${mode} ${step.title}`).toContain(step.to)
           }
         }
       })

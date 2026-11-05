@@ -4,8 +4,8 @@ import { scenarios } from '../scenarios'
 import { nodesFor, type NodeMap } from '../topology/route'
 import { TERMS, type Term } from './terms'
 
-export const MODES: readonly Mode[] = ['normal', 'attack', 'defense']
-export const MODE_LABEL: Record<Mode, string> = { normal: '正常', attack: '攻撃', defense: '対策' }
+export const MODES: readonly Mode[] = ['normal', 'attack', 'defense', 'incident']
+export const MODE_LABEL: Record<Mode, string> = { normal: '正常', attack: '攻撃', defense: '対策', incident: '事後対応' }
 
 export const TERM_BY_ID: ReadonlyMap<string, Term> = new Map(TERMS.map((t) => [t.id, t]))
 
@@ -101,7 +101,7 @@ function buildIndex(scenario: Scenario): ScenarioIndex {
     })
   }
   for (const mode of MODES) termIdsIn(scenario.summary[mode]).forEach(add)
-  for (const point of scenario.points) termIdsIn(point).forEach(add)
+  for (const point of [...scenario.points, ...scenario.incidentPoints]) termIdsIn(point).forEach(add)
   for (const table of scenario.states ?? []) termIdsIn(table.title).forEach(add)
   return { terms, steps, byStep }
 }
