@@ -48,12 +48,32 @@ export function Home() {
         </p>
       </section>
 
+      <section aria-labelledby="basics-title">
+        <h2 id="basics-title" className="section-title">
+          基礎編<span className="section-note">はじめての人は、ここから順に</span>
+        </h2>
+        <ol className="cards basics">
+          {scenarios
+            .filter((s) => s.basic)
+            .map((s, i) => (
+              <li key={s.id}>
+                <Link to={`/${s.id}`} className="card">
+                  <span className="card-kind">基礎 {i + 1}</span>
+                  <span className="card-name">{s.name}</span>
+                  <span className="card-text">{s.summary.normal}</span>
+                  <span className="card-meta">{s.steps.normal.length} ステップ</span>
+                </Link>
+              </li>
+            ))}
+        </ol>
+      </section>
+
       <section aria-labelledby="list-title">
         <h2 id="list-title" className="section-title">
-          シナリオ
+          攻撃と対策のシナリオ
         </h2>
         <ul className="cards">
-          {scenarios.map((s) => (
+          {scenarios.filter((s) => !s.basic).map((s) => (
             <li key={s.id}>
               <Link to={`/${s.id}`} className="card">
                 <span className="card-threat">{s.threat}</span>

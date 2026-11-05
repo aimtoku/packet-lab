@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Mode, Scenario } from '../types'
+import { modesOf, type Mode, type Scenario } from '../types'
 import { MODE_LABEL, MODES, occurrencesOf, scenarioTerms, TERM_BY_ID, type Occurrence } from '../glossary/match'
 import { stateAt } from '../playback/state'
 import { dwellFor, loadSpeed, prefersReducedMotion, saveSpeed, SPEEDS, type Speed } from '../playback/speed'
@@ -48,7 +48,7 @@ interface ViewState {
 function readState(scenario: Scenario): ViewState {
   const params = new URLSearchParams(window.location.search)
   const view = VIEWS.find((v) => v.id === params.get('view'))?.id ?? 'diagram'
-  const mode = MODES.find((m) => m === params.get('mode')) ?? 'normal'
+  const mode = modesOf(scenario).find((m) => m === params.get('mode')) ?? 'normal'
   const step = Number(params.get('step') ?? '1')
   const index = Number.isInteger(step) && step >= 1 && step <= scenario.steps[mode].length ? step - 1 : 0
   const term = params.get('term')
@@ -131,7 +131,7 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
     (s: ViewState): ViewState =>
       s.index < scenario.steps[s.mode].length - 1
         ? { ...s, index: s.index + 1, sub: 0 }
-        : { ...s, mode: NEXT_MODE[s.mode], index: 0, sub: 0 },
+        : { ...s, mode: scenario.basic ? 'normal' : NEXT_MODE[s.mode], index: 0, sub: 0 },
     [scenario],
   )
   const nextStep = useCallback(() => {
@@ -286,7 +286,7 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
   return (
     <div className={`scenario${sheet ? ' has-sheet' : ''}`}>
       <nav className="scenario-tabs" aria-label="シナリオ">
-        {scenarios.map((s) => (
+        {scenarios.filter((s) => !!s.basic === !!scenario.basic).map((s) => (
           <Link key={s.id} to={`/${s.id}`} className="scenario-tab" aria-current={s.id === scenario.id ? 'page' : undefined}>
             {s.name}
             <small>{s.threat}</small>
@@ -322,6 +322,7 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
               activeTerm={term}
               onTerm={selectFromText}
             >
+              {!scenario.basic && (
               <div className="modes" role="group" aria-label="表示モード">
                 {MODES.map((m) => (
                   <button key={m} type="button" className={`k-${m}`} aria-pressed={m === mode} onClick={() => changeMode(m)}>
@@ -330,6 +331,7 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
                   </button>
                 ))}
               </div>
+              )}
             </StoryFlow>
 
             <div className="workspace">
@@ -357,6 +359,7 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
                   activeTerm={term}
                   onTerm={selectFromText}
                 />
+                {!scenario.basic && (
                 <ul className="legend">
                   <li>
                     <span className="swatch-badge attacker" aria-hidden="true">
@@ -371,6 +374,7 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
                     対策を実施する機器（対策モード）
                   </li>
                 </ul>
+                )}
               </section>
 
               <StepDetail
@@ -453,7 +457,7 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
                 </More>
                 <More
                   id="points"
-                  title={mode === 'incident' ? 'インシデント対応で押さえる論点' : '午後で押さえる論点'}
+                  title={scenario.basic ? '押さえておきたいこと' : mode === 'incident' ? 'インシデント対応で押さえる論点' : '午後で押さえる論点'}
                   open={moreOpen.has('points')}
                   onToggle={setMoreOpen}
                 >

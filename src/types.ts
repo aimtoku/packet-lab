@@ -196,6 +196,11 @@ export interface ScenarioTopology<A extends string> {
 
 export interface Scenario<A extends string = string> {
   id: string
+  /**
+   * 基礎編（攻撃の前に、ふだんの通信の仕組みだけを学ぶ）。
+   * 正常のモードだけを使い、攻撃・対策・事後対応のステップは空にする
+   */
+  basic?: boolean
   name: string
   threat: string
   actors: readonly Actor<A>[]
@@ -207,6 +212,13 @@ export interface Scenario<A extends string = string> {
   topology: ScenarioTopology<A>
   /** 機器の中の状態の表 */
   states?: readonly StateTable[]
+}
+
+const ALL_MODES: readonly Mode[] = ['normal', 'attack', 'defense', 'incident']
+
+/** シナリオで表示するモード（基礎編は正常だけ） */
+export function modesOf(scenario: Pick<Scenario, 'basic'>): readonly Mode[] {
+  return scenario.basic ? ['normal'] : ALL_MODES
 }
 
 /**

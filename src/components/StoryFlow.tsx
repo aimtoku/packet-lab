@@ -33,7 +33,7 @@ export function StoryFlow({ scenario, mode, index, onSelect, marked, activeTerm,
     <section className={`flow k-${mode}`} aria-labelledby="flow-title">
       {children}
       <div className="flow-head">
-        <h2 id="flow-title">{FLOW_TITLE[mode]}</h2>
+        <h2 id="flow-title">{scenario.basic ? '通信の流れ' : FLOW_TITLE[mode]}</h2>
         <span className="flow-count">
           {index + 1} / {steps.length}
         </span>

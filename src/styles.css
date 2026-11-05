@@ -3117,3 +3117,14 @@ a.chip {
   color: var(--on-accent);
   font-weight: 700;
 }
+
+.section-note {
+  margin-left: 10px;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+ol.cards {
+  list-style: none;
+}

@@ -157,7 +157,7 @@ export function StepDetail({ scenario, mode, index, subs, sub, onSub, onPrev, on
         <p className="note">{text(step.note)}</p>
         {step.point && (
           <div className="point">
-            <span className="point-label">支援士ポイント</span>
+            <span className="point-label">{scenario.basic ? 'ポイント' : '支援士ポイント'}</span>
             <p>{text(step.point)}</p>
           </div>
         )}
@@ -172,7 +172,7 @@ export function StepDetail({ scenario, mode, index, subs, sub, onSub, onPrev, on
           前へ
         </button>
         <button type="button" className="primary" onClick={onNext}>
-          {isLast ? NEXT_LABEL[mode] : '次へ'}
+          {isLast ? (scenario.basic ? '最初から' : NEXT_LABEL[mode]) : '次へ'}
         </button>
       </footer>
     </section>
