@@ -1,13 +1,18 @@
 import { defineScenario } from '../types'
+import { CSIRT, IR_TABLE, ir } from './incident'
 
 // Web掲示板：XSS（格納型）
 // 図中のIPアドレスとドメイン（example.*）は、説明用に予約されたもので、実在のサーバを指しません。
 // 攻撃のスクリプトは、仕組みが分かる程度に省略して載せています。
 //
-// 掲示板サイト（forum.example）203.0.113.90、攻撃者（evil.example）198.51.100.66。
-// 通信はすべてHTTPS（TLS）です。PCの送信元アドレスは、FWで変換されるので名前だけで表しています。
-const FORUM = '203.0.113.90'
+// 自社の掲示板サイト（www.example.co.jp、DMZのWebサーバ）203.0.113.10、攻撃者（evil.example）198.51.100.66。
+// 利用者は社外（自宅など）からアクセスします。通信はすべてHTTPS（TLS）です。
+const FORUM = '203.0.113.10'
 const EVIL = '198.51.100.66'
+
+const FW_IN = 'FW：外部から公開Webサーバへの443番ポート（HTTPS）は許可されているので、通します。'
+const FW_OUT = 'FW：Webサーバからの応答なので、通します。'
+const FW_POST = 'FW：Webサーバへの443番ポート（HTTPS）なので通します。FWはアドレスとポートを見るだけで、投稿の中身までは調べません（中身を調べるのはWAFの役割です）。'
 
 /** 掲示板に最初から保存されている投稿 */
 const FIRST_POST = [['tanaka', 'おはようございます']] as const
@@ -18,25 +23,34 @@ export const xss = defineScenario({
   threat: 'XSS（格納型）',
   actors: [
     { id: 'br', name: 'ブラウザ', sub: '利用者' },
-    { id: 'sv', name: '掲示板サイト', sub: 'forum.example' },
+    { id: 'sv', name: '掲示板サイト', sub: 'www.example.co.jp' },
     { id: 'atk', name: '攻撃者', sub: 'evil.example', attacker: true },
+    CSIRT,
   ],
   summary: {
     normal: '利用者が掲示板に投稿し、一覧ページを閲覧する流れです。サイトは投稿をデータベースに保存し、ページのHTMLに埋め込んで返します。',
     attack: '攻撃者がスクリプトを含む投稿を保存させ、それを閲覧した利用者のブラウザでスクリプトを実行させて、セッションIDを盗みます（格納型XSS）。',
     defense: '出力時のエスケープでスクリプトをただの文字にし、CSPとHttpOnly属性で、万一の実行やCookieの持ち出しも防ぎます。',
+    incident:
+      '自社の掲示板のXSSの脆弱性を悪用され、利用者のセッションIDが盗まれたあとの対応です。問題の投稿を止め、全員のセッションを無効にしてから、脆弱性を直します。',
   },
   states: [
     {
       id: 'db',
       title: '掲示板のデータベース',
       columns: ['投稿者', '保存した内容'],
-      initial: { normal: FIRST_POST, attack: FIRST_POST, defense: FIRST_POST },
+      initial: {
+        normal: FIRST_POST,
+        attack: FIRST_POST,
+        defense: FIRST_POST,
+        incident: [...FIRST_POST, ['attacker', '<script>（Cookieを送る処理）</script>', 'attack']],
+      },
     },
     {
       id: 'cookie',
-      title: 'ブラウザのCookie（forum.example）',
+      title: 'ブラウザのCookie（www.example.co.jp）',
       columns: ['名前', '値と属性'],
+      modes: ['normal', 'attack', 'defense'],
       initial: {
         normal: [['SID', '4c1d…']],
         attack: [['SID', '4c1d…（HttpOnly なし）']],
@@ -44,6 +58,14 @@ export const xss = defineScenario({
       },
     },
     { id: 'loot', title: '攻撃者の手元', columns: ['項目', '内容'], modes: ['attack', 'defense'] },
+    {
+      id: 'sessions',
+      title: '掲示板のセッション',
+      columns: ['項目', '状態'],
+      modes: ['incident'],
+      initial: { incident: [['有効なセッション', '盗まれたものを含む', 'attack']] },
+    },
+    IR_TABLE,
   ],
   steps: {
     normal: [
@@ -60,7 +82,7 @@ export const xss = defineScenario({
         ],
         note: '投稿した内容は、サーバのデータベースに保存されます。',
         send: 'ブラウザ：入力した文章を、POSTリクエストの本文に入れて送ります。',
-        via: { fw: 'FW：外部のWebサイトへのHTTPS（443番ポート）なので、通します。' },
+        via: { fw: FW_IN },
         receive: '掲示板サイト：投稿された文章を、そのままデータベースに保存します。',
         wire: { app: 'HTTP（POST /posts）', transport: 'TCP', srcPort: '50400', dstPort: '443', dstIp: FORUM, secure: 'TLS', focus: ['l7'] },
         changes: [{ table: 'db', key: 'sato', value: '今日の勉強会は19時からです' }],
@@ -77,7 +99,7 @@ export const xss = defineScenario({
         ],
         note: 'サーバは投稿を保存し、ブラウザを一覧ページへ移動させます。',
         send: '掲示板サイト：保存が終わったので、一覧ページ（/posts）へ移動するよう指示します。',
-        via: { fw: 'FW：応答なので、通します。' },
+        via: { fw: FW_OUT },
         receive: 'ブラウザ：指示に従って、一覧ページを開きにいきます。',
         wire: { app: 'HTTP（303 See Other）', transport: 'TCP', srcPort: '443', dstPort: '50400', srcIp: FORUM, secure: 'TLS' },
       },
@@ -93,7 +115,7 @@ export const xss = defineScenario({
         ],
         note: 'ほかの利用者も、同じ一覧ページを開きます。',
         send: 'ブラウザ：一覧ページを要求します。',
-        via: { fw: 'FW：HTTPSの通信なので、通します。' },
+        via: { fw: FW_IN },
         receive: '掲示板サイト：データベースから投稿を読み出して、一覧ページのHTMLを組み立てます。',
         wire: { app: 'HTTP（GET /posts）', transport: 'TCP', srcPort: '50401', dstPort: '443', dstIp: FORUM, secure: 'TLS' },
       },
@@ -110,7 +132,7 @@ export const xss = defineScenario({
         note: 'サーバは保存した投稿を、HTMLの中に埋め込んで返します。投稿に「<」や「>」が含まれていたときにどう扱うかが、XSSの分かれ目です。',
         point: 'XSSの根本原因は、利用者が入力した文字列を、HTMLとして解釈される場所にそのまま出力することです。',
         send: '掲示板サイト：保存してある投稿を、HTMLの中に埋め込んで返します。',
-        via: { fw: 'FW：応答なので、通します。' },
+        via: { fw: FW_OUT },
         receive: 'ブラウザ：HTMLを解釈して表示します。投稿の中に「<」があったとき、それがタグとして解釈されるかどうかが分かれ目です。',
         wire: { app: 'HTTP（一覧ページのHTML）', transport: 'TCP', srcPort: '443', dstPort: '50401', srcIp: FORUM, secure: 'TLS', focus: ['l7'] },
       },
@@ -129,6 +151,7 @@ export const xss = defineScenario({
         ],
         note: '掲示板が入力をそのまま保存するので、スクリプトがデータベースに格納されます。この種類を格納型XSS（蓄積型・持続型）と呼び、ページを閲覧した全員が被害を受けます。',
         send: '攻撃者：<script> タグを含む文章を、ふつうの投稿として送ります。',
+        via: { fw: FW_POST },
         receive: '掲示板サイト：入力をそのままデータベースに保存してしまいます。',
         wire: { app: 'HTTP（POST /posts）', transport: 'TCP', srcPort: '41200', dstPort: '443', srcIp: EVIL, dstIp: FORUM, secure: 'TLS', focus: ['l7'] },
         changes: [{ table: 'db', key: 'attacker', value: '<script>（Cookieを送る処理）</script>', tone: 'attack' }],
@@ -145,7 +168,7 @@ export const xss = defineScenario({
         ],
         note: '利用者は、いつもどおり掲示板を開くだけです。',
         send: 'ブラウザ：利用者が、いつもどおり一覧ページを開きます。',
-        via: { fw: 'FW：HTTPSの通信なので、通します。' },
+        via: { fw: FW_IN },
         receive: '掲示板サイト：攻撃者の投稿も含めて、データベースから読み出します。',
         wire: { app: 'HTTP（GET /posts）', transport: 'TCP', srcPort: '50401', dstPort: '443', dstIp: FORUM, secure: 'TLS' },
       },
@@ -161,7 +184,7 @@ export const xss = defineScenario({
         ],
         note: 'サーバが投稿をエスケープせずに出力するので、ブラウザはそれを掲示板サイトのスクリプトとして実行します。同一オリジンのスクリプトとして動くため、このサイトのCookieにアクセスできます。',
         send: '掲示板サイト：投稿をエスケープせずに、そのままHTMLへ埋め込んで返します。',
-        via: { fw: 'FW：応答なので、通します。中身は暗号化されているので、FWからは見えません。' },
+        via: { fw: 'FW：応答なので通します。中身は暗号化されていて、FWからは見えません。' },
         receive: 'ブラウザ：<script> をタグとして解釈し、掲示板サイトのスクリプトとして実行します。スクリプトは document.cookie からSIDを読み出します。',
         wire: { app: 'HTTP（一覧ページのHTML）', transport: 'TCP', srcPort: '443', dstPort: '50401', srcIp: FORUM, secure: 'TLS', focus: ['l7'] },
       },
@@ -177,7 +200,6 @@ export const xss = defineScenario({
         ],
         note: 'スクリプトは画像の読み込みなどを装って、Cookieを攻撃者のサーバへ送ります。利用者の画面には何も起きません。',
         send: 'ブラウザ：スクリプトが、画像の読み込みを装って、SIDを付けたURLへリクエストを送ります。',
-        via: { fw: 'FW：ふつうのWebアクセスに見えるので、通します。' },
         receive: '攻撃者：利用者のセッションIDを手に入れます。',
         wire: { app: 'HTTP（GET /c?SID=4c1d…）', transport: 'TCP', srcPort: '50410', dstPort: '443', dstIp: EVIL, secure: 'TLS', focus: ['l7'] },
         changes: [{ table: 'loot', key: 'SID', value: '4c1d…（利用者のセッションID）', tone: 'attack' }],
@@ -195,6 +217,7 @@ export const xss = defineScenario({
         note: '攻撃者は盗んだセッションIDを使って、利用者になりすまします。',
         point: 'XSSの被害はCookieの窃取だけではありません。偽の入力フォームを表示したり、利用者の操作になりすまして送信したりと、そのサイトで利用者ができることは何でもできてしまいます。',
         send: '攻撃者：盗んだSIDを自分のブラウザのCookieにセットして、掲示板サイトにアクセスします。',
+        via: { fw: FW_IN },
         receive: '掲示板サイト：有効なセッションIDなので、利用者本人がログインしているものとして扱ってしまいます。',
         wire: { app: 'HTTP（GET /mypage）', transport: 'TCP', srcPort: '41210', dstPort: '443', srcIp: EVIL, dstIp: FORUM, secure: 'TLS' },
         changes: [{ table: 'loot', key: 'なりすまし', value: '利用者としてログイン中', tone: 'attack' }],
@@ -212,6 +235,7 @@ export const xss = defineScenario({
         ],
         note: '攻撃者の手口は同じです。入力の段階で弾く入力値の検証も有効ですが、根本対策は次の「出力時のエスケープ」です。',
         send: '攻撃者：<script> タグを含む文章を投稿します。',
+        via: { fw: FW_POST },
         receive: '掲示板サイト：文章として保存します。出力するときにエスケープするので、保存の時点では書き換えません。',
         wire: { app: 'HTTP（POST /posts）', transport: 'TCP', srcPort: '41200', dstPort: '443', srcIp: EVIL, dstIp: FORUM, secure: 'TLS' },
         changes: [{ table: 'db', key: 'attacker', value: '<script>（Cookieを送る処理）</script>', tone: 'attack' }],
@@ -227,7 +251,7 @@ export const xss = defineScenario({
         ],
         note: '利用者の操作も同じです。',
         send: 'ブラウザ：利用者が一覧ページを開きます。',
-        via: { fw: 'FW：HTTPSの通信なので、通します。' },
+        via: { fw: FW_IN },
         receive: '掲示板サイト：投稿を読み出して、HTMLを組み立てます。',
         wire: { app: 'HTTP（GET /posts）', transport: 'TCP', srcPort: '50401', dstPort: '443', dstIp: FORUM, secure: 'TLS' },
       },
@@ -245,7 +269,7 @@ export const xss = defineScenario({
         note: '「<」を「&lt;」のように置き換えて出力するので、ブラウザは投稿をただの文字として表示します。さらにCSPで、サイト自身のファイル以外のスクリプト（ページに直接書かれたものを含む）の実行を禁止しています。',
         point: 'エスケープは、出力する場所に合わせて行います。HTMLの本文、属性値、JavaScriptの中、URLでは、必要な処理が異なります。',
         send: '掲示板サイト：投稿の「<」を「&lt;」などに置き換えて（エスケープして）埋め込みます。CSPヘッダも付けて返します。',
-        via: { fw: 'FW：応答なので、通します。' },
+        via: { fw: FW_OUT },
         receive: 'ブラウザ：投稿を、ただの文字「<script>…」として表示します。スクリプトは実行されません。',
         wire: { app: 'HTTP（一覧ページのHTML）', transport: 'TCP', srcPort: '443', dstPort: '50401', srcIp: FORUM, secure: 'TLS', focus: ['l7'] },
       },
@@ -253,7 +277,7 @@ export const xss = defineScenario({
         from: 'br',
         to: 'atk',
         kind: 'blocked',
-        blockedAt: 'pc',
+        blockedAt: 'ext1',
         label: 'Cookie送信 → 遮断',
         title: '万一実行されても持ち出させない',
         fields: [
@@ -274,6 +298,129 @@ export const xss = defineScenario({
         },
       },
     ],
+    incident: [
+      {
+        from: 'sv',
+        to: 'csirt',
+        kind: 'response',
+        phase: 'detect',
+        label: 'アラート',
+        title: 'セッションの乗っ取りを検知する',
+        fields: [
+          ['きっかけ', '同じセッションIDが、離れた場所から同時に使われている'],
+          ['もう1つの手がかり', '<script> を含む投稿が、WAFのログに残っている'],
+          ['検知した仕組み', 'アクセスログをSIEMが分析'],
+        ],
+        note: '同じセッションIDが2か所から同時に使われるのは、セッションハイジャックの典型的な兆候です。',
+        send: 'Webサーバ：アクセスログをSIEMに送っています。同じセッションIDが2か所から使われ、SIEMがアラートを出します。',
+        receive: 'CSIRT：アラートを受け、セッションの乗っ取りの疑いとして対応を始めます。',
+        changes: [ir('detect', '同じセッションIDの同時利用を検知（SIEM）')],
+      },
+      {
+        from: 'csirt',
+        to: 'sv',
+        kind: 'response',
+        phase: 'triage',
+        label: '投稿を調査',
+        title: '原因と影響範囲を調べる',
+        fields: [
+          ['原因', '掲示板の投稿に、Cookieを送るスクリプトが含まれていた（格納型XSS）'],
+          ['影響範囲', 'その投稿を表示した利用者（アクセスログから人数を確認）'],
+          ['優先度', '高（なりすましで個人情報を見られる恐れ）'],
+        ],
+        note: '格納型XSSは、投稿を表示した人すべてが被害を受けるので、影響範囲が広くなりやすい攻撃です。',
+        send: 'CSIRT：掲示板のデータベースとアクセスログを調べます。',
+        receive: 'Webサーバ：攻撃者の投稿と、それを表示した利用者の一覧が分かります。',
+        changes: [ir('triage', '格納型XSSが原因。投稿を表示した全員に影響。優先度：高')],
+      },
+      {
+        from: 'csirt',
+        to: 'sv',
+        kind: 'response',
+        phase: 'contain',
+        label: '投稿を非公開に',
+        title: '被害の拡大を止める',
+        fields: [
+          ['投稿', '問題の投稿を非公開にする（削除はせず、証拠として残す）'],
+          ['セッション', '全利用者のセッションを無効にして、再ログインさせる'],
+          ['WAF', '<script> を含む投稿を遮断するルールを追加'],
+        ],
+        note: '盗まれたセッションIDを使えなくするには、全員のセッションを無効にするのが確実です。',
+        send: 'CSIRT：問題の投稿の非公開と、全セッションの無効化を指示します。',
+        receive: 'Webサーバ：投稿を非公開にし、全員のセッションを無効にします。盗まれたセッションIDは、もう使えません。',
+        changes: [
+          { table: 'db', key: 'attacker', value: '非公開（証拠として保存）', tone: 'defense' },
+          { table: 'sessions', key: '有効なセッション', value: 'すべて無効化（盗まれたものも使えない）', tone: 'defense' },
+          ir('contain', '投稿を非公開にし、全セッションを無効化'),
+        ],
+      },
+      {
+        from: 'csirt',
+        to: 'sv',
+        kind: 'response',
+        phase: 'preserve',
+        label: '証拠を保全',
+        title: '投稿とログを証拠として残す',
+        fields: [
+          ['保全するもの', '投稿の原文（スクリプトを含むまま）、データベースの該当レコード、アクセスログ'],
+          ['記録', 'ハッシュ値と保管の記録'],
+        ],
+        note: 'スクリプトの送り先（evil.example）やセッションIDが使われた記録は、被害の範囲を確かめる根拠になります。',
+        send: 'CSIRT：投稿の原文とログを取り出します。',
+        receive: 'Webサーバ：データを書き出します。スクリプトの送り先が evil.example だったことも確かめられます。',
+        changes: [ir('preserve', '投稿の原文、データベース、アクセスログを保全')],
+      },
+      {
+        from: 'csirt',
+        to: 'sv',
+        kind: 'response',
+        phase: 'recover',
+        label: '脆弱性を修正',
+        title: '脆弱性を直してから再開する',
+        fields: [
+          ['修正', '出力時のエスケープ、CSP、Cookie の HttpOnly 属性'],
+          ['確認', '脆弱性診断で、ほかの画面も確かめる'],
+          ['再開', '修正を確かめてから、掲示板を再開'],
+        ],
+        note: '根本対策の出力時のエスケープを入れたうえで、CSPとHttpOnly属性で多層防御にします。',
+        send: 'CSIRT：開発担当と協力して、出力時のエスケープなどを実装します。',
+        receive: 'Webサーバ：投稿をエスケープして出力するようになり、スクリプトは実行されなくなります。',
+        changes: [ir('recover', 'エスケープ、CSP、HttpOnlyを実装し、診断のあとに再開')],
+      },
+      {
+        from: 'csirt',
+        to: 'br',
+        kind: 'response',
+        phase: 'report',
+        label: '利用者に連絡',
+        title: '利用者と関係先に知らせる',
+        fields: [
+          ['利用者へ', '被害の可能性と、パスワード変更のお願い'],
+          ['個人情報', '閲覧された恐れがあれば、個人情報保護委員会へ報告し、本人に通知'],
+          ['社内', '経営層へ報告'],
+        ],
+        note: 'なりすましで個人情報が見られた恐れがあれば、法律に基づく報告と通知が必要です。',
+        send: 'CSIRT：影響を受けた利用者に、経緯とパスワード変更のお願いを連絡します。',
+        receive: '利用者：連絡を受け、パスワードを変更します。',
+        changes: [ir('report', '利用者、経営層、個人情報保護委員会へ')],
+      },
+      {
+        from: 'csirt',
+        to: 'csirt',
+        kind: 'response',
+        phase: 'improve',
+        label: '再発防止',
+        title: '開発の段階から防ぐ',
+        fields: [
+          ['開発', 'テンプレートの自動エスケープを使い、出力する場所ごとのエスケープを徹底'],
+          ['検査', 'リリース前の脆弱性診断'],
+          ['多層防御', 'CSP、HttpOnly属性、WAF'],
+        ],
+        note: '同じ種類の脆弱性を作り込まない仕組み（自動エスケープ）と、見つける仕組み（脆弱性診断）の両方をそろえます。',
+        receive: 'CSIRT：開発の手順と脆弱性診断を見直し、同じ種類の脆弱性を防ぎます。',
+        changes: [ir('improve', '自動エスケープ、脆弱性診断、多層防御')],
+      },
+    ],
   },
   points: [
     '格納型XSSはサーバに保存されたスクリプトが閲覧者全員に実行される。反射型XSSはURLなどに含めたスクリプトがそのまま応答に反映される。DOM-based XSSはブラウザ側のJavaScriptの処理だけで起きる',
@@ -281,12 +428,21 @@ export const xss = defineScenario({
     'HttpOnly属性はCookieの窃取を防ぐが、XSSそのものは防げない',
     'WAFは攻撃のパターンを検知して遮断できるが、すり抜けもあるため、アプリケーション側の対策が前提',
   ],
+  incidentPoints: [
+    'セッションIDが盗まれたら、全利用者のセッションを無効にして、再ログインさせる',
+    '問題の投稿は削除せず、非公開にして証拠として残す',
+    '同じセッションIDが離れた場所から同時に使われるのは、セッションハイジャックの兆候',
+    '根本対策（出力時のエスケープ）を入れてから再開し、CSPやHttpOnly属性で多層防御にする',
+  ],
   topology: {
-    map: { br: 'pc', sv: 'ext1', atk: 'ext2' },
+    map: { br: 'ext1', sv: 'web', atk: 'ext2', csirt: 'soc' },
     devices: {
-      ext1: { type: 'server', name: '掲示板サイト', sub: 'forum.example' },
+      ext1: { type: 'pc', name: '利用者', sub: 'ブラウザ' },
       ext2: { type: 'laptop', name: '攻撃者', sub: 'evil.example' },
     },
-    shields: ['ext1', 'pc'],
+    labels: {
+      web: ['Web', '掲示板サイト'],
+    },
+    shields: ['web', 'ext1'],
   },
 })

@@ -27,8 +27,8 @@ describe('ステップの区切り', () => {
     const xss = scenario('xss')
     const subs = subStepsFor(xss, nodesFor(xss), xss.steps.defense[3]!)
     expect(subs.map((s) => [s.kind, s.node])).toEqual([
-      ['send', 'pc'],
-      ['blocked', 'pc'],
+      ['send', 'ext1'],
+      ['blocked', 'ext1'],
     ])
   })
 

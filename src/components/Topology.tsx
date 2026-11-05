@@ -14,7 +14,7 @@ import {
   VIEW_WIDTH,
   ZONES,
 } from '../topology/layout'
-import { attackerNodes, nodesFor, stepRoute } from '../topology/route'
+import { attackerNodes, nodesFor, offstageNodes, stepRoute } from '../topology/route'
 import { deviceShapes } from './Device'
 
 interface Props {
@@ -70,6 +70,11 @@ export function Topology({ scenario, mode, index, subs, sub, travelMs, onArrive,
 
   /** このシナリオのどこかのステップで使う機器。使わない機器は薄く表示する */
   const involved = new Set<NodeId>([...Object.values(scenario.topology.map), ...routes.flat()])
+  // 事後対応では、そのモードのステップで使う機器だけをはっきり表示する
+  if (mode === 'incident') {
+    involved.clear()
+    routes.flat().forEach((id) => involved.add(id))
+  }
   // 今パケットがいる機器を、輪で示す
   const focusId = current?.node ?? scenario.topology.map[step.to]
   const height = scenario.topology.mobile ? VIEW_HEIGHT_MOBILE : VIEW_HEIGHT
@@ -78,8 +83,9 @@ export function Topology({ scenario, mode, index, subs, sub, travelMs, onArrive,
       (z.id !== 'ext' || scenario.topology.devices?.ext1 || scenario.topology.devices?.ext2) &&
       (z.id !== 'mobile' || scenario.topology.mobile),
   )
-  // 奥（上）の機器から順に描き、手前の機器が重なるようにする
-  const order = (Object.keys(nodes) as NodeId[]).sort((a, b) => nodes[a]!.y - nodes[b]!.y)
+  // 奥（上）の機器から順に描き、手前の機器が重なるようにする。このモードに登場しない人の席は描かない
+  const offstage = offstageNodes(scenario, mode)
+  const order = (Object.keys(nodes) as NodeId[]).filter((id) => !offstage.includes(id)).sort((a, b) => nodes[a]!.y - nodes[b]!.y)
   const isDim = (id: NodeId) => !involved.has(id) || (attackers.includes(id) && mode === 'normal')
   // 阻止されるときは、止める機器までの経路だけを描く
   const drawn = stop === null ? points : points.slice(0, Math.max(stop, 1) + 1)

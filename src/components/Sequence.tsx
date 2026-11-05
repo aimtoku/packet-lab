@@ -18,12 +18,22 @@ const WIDTH = 360
 const ROW_TOP = 86
 const ROW_GAP = 46
 
+/**
+ * シーケンス図に並べる登場人物。
+ * そのモードに登場しない人（CSIRTは事後対応だけ）は除く。事後対応では、ステップに出てくる人だけを並べる。
+ */
+export function sequenceActors(scenario: Scenario, mode: Mode) {
+  const used = new Set(scenario.steps[mode].flatMap((s) => [s.from, s.to]))
+  return scenario.actors.filter((a) => (!a.onlyIn || a.onlyIn.includes(mode)) && (mode !== 'incident' || used.has(a.id)))
+}
+
 export function Sequence({ scenario, mode, index, onSelect, marked, progress, travelMs }: Props) {
-  const { actors } = scenario
+  const actors = sequenceActors(scenario, mode)
   const steps = scenario.steps[mode]
-  const margin = actors.length === 3 ? 62 : 46
-  const boxWidth = actors.length === 3 ? 104 : 82
-  const xOf = new Map(actors.map((a, i) => [a.id, margin + (i * (WIDTH - 2 * margin)) / (actors.length - 1)]))
+  const margin = actors.length <= 3 ? 62 : 46
+  const spacing = actors.length > 1 ? (WIDTH - 2 * margin) / (actors.length - 1) : 0
+  const boxWidth = actors.length > 1 ? Math.min(110, spacing - 8) : 110
+  const xOf = new Map(actors.map((a, i) => [a.id, actors.length > 1 ? margin + i * spacing : WIDTH / 2]))
   const height = ROW_TOP + steps.length * ROW_GAP - 8
 
   /** 阻止の印を置く位置（送信元で止めるときは送信元の近く、ほかは宛先の手前） */

@@ -39,7 +39,7 @@ export function stateAt(
     id: t.id,
     title: t.title,
     columns: t.columns,
-    rows: (t.initial?.[mode] ?? []).map(([key, value]) => ({ key, value, changedNow: false })),
+    rows: (t.initial?.[mode] ?? []).map(([key, value, tone]) => ({ key, value, tone, changedNow: false })),
   }))
   const steps = scenario.steps[mode]
   for (let i = 0; i <= index && i < steps.length; i++) {

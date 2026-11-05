@@ -19,6 +19,9 @@
   --point-bg: #eef3fc;
   --term-bg: #fff1c2;
   --term-line: #b7791f;
+  --resp: #7a4fb8;
+  --resp-bg: #f3edfb;
+  --resp-soft: #e2d6f5;
   --scrim: rgba(15, 20, 30, 0.45);
   --scroll-shadow: rgba(23, 32, 51, 0.16);
   --dev-t: #ffffff;
@@ -66,6 +69,9 @@
     --point-bg: #18233a;
     --term-bg: #4a3a12;
     --term-line: #e0b04f;
+    --resp: #b796f0;
+    --resp-bg: #251c38;
+    --resp-soft: #3d2f5c;
     --scrim: rgba(0, 0, 0, 0.6);
     --scroll-shadow: rgba(0, 0, 0, 0.55);
     --dev-t: #3d4a63;
@@ -391,7 +397,7 @@ main.wrap {
 
 .modes {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   border: 1px solid var(--line);
   border-radius: 10px;
   overflow: hidden;
@@ -421,6 +427,33 @@ main.wrap {
   font-weight: 700;
 }
 
+@media (max-width: 520px) {
+  .modes button {
+    font-size: 0.82rem;
+    padding: 9px 2px;
+  }
+
+  .modes .dot {
+    display: none;
+  }
+
+  .modes button[aria-pressed='true'] {
+    box-shadow: inset 0 -2px 0 var(--accent);
+  }
+
+  .modes button.k-attack[aria-pressed='true'] {
+    box-shadow: inset 0 -2px 0 var(--atk);
+  }
+
+  .modes button.k-defense[aria-pressed='true'] {
+    box-shadow: inset 0 -2px 0 var(--ok);
+  }
+
+  .modes button.k-incident[aria-pressed='true'] {
+    box-shadow: inset 0 -2px 0 var(--resp);
+  }
+}
+
 .dot {
   display: inline-block;
   width: 8px;
@@ -435,6 +468,10 @@ main.wrap {
 
 .dot.k-defense {
   background: var(--ok);
+}
+
+.dot.k-incident {
+  background: var(--resp);
 }
 
 .summary {
@@ -573,6 +610,10 @@ main.wrap {
   border-top: 2px dashed var(--gray);
 }
 
+.swatch.k-response {
+  border-top: 2px dashed var(--resp);
+}
+
 .swatch-badge {
   display: inline-flex;
   align-items: center;
@@ -608,6 +649,19 @@ main.wrap {
 .cable {
   stroke: var(--cable);
   stroke-width: 1.6;
+}
+
+/* CSIRT（人の形） */
+.person-body {
+  fill: var(--resp-soft);
+  stroke: var(--resp);
+  stroke-width: 0.9;
+}
+
+.person-head {
+  fill: var(--dev-t);
+  stroke: var(--resp);
+  stroke-width: 0.9;
 }
 
 .face {
@@ -793,6 +847,20 @@ main.wrap {
   stroke-dasharray: 3 4;
 }
 
+/* 事後対応：ケーブルの上を流れるとは限らない連絡や指示なので、点線で表す */
+.hop.k-response,
+.ring.k-response {
+  stroke: var(--resp);
+}
+
+.hop.k-response {
+  stroke-dasharray: 7 4;
+}
+
+.packet.k-response {
+  fill: var(--resp);
+}
+
 .packet.k-normal {
   fill: var(--accent);
 }
@@ -961,6 +1029,19 @@ main.wrap {
   fill: var(--muted);
 }
 
+.seq-step.k-response .arrow {
+  stroke: var(--resp);
+  stroke-dasharray: 6 3;
+}
+
+.seq-step.k-response .head {
+  fill: var(--resp);
+}
+
+.seq-step.k-response .seq-label {
+  fill: var(--resp);
+}
+
 .seq-packet {
   fill: var(--fg);
   stroke: var(--panel);
@@ -993,6 +1074,10 @@ main.wrap {
   background: var(--ok-bg);
 }
 
+.detail-head.k-response {
+  background: var(--resp-bg);
+}
+
 .detail-meta {
   font-family: var(--mono);
   font-size: 0.74rem;
@@ -1020,11 +1105,50 @@ main.wrap {
   color: var(--muted);
 }
 
+.k-response .kind-tag {
+  color: var(--resp);
+}
+
 .detail-head h2 {
   margin: 0;
   font-size: 1.08rem;
   line-height: 1.45;
   text-wrap: balance;
+}
+
+/* 事後対応の段階 */
+.phases {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 0.72rem;
+}
+
+.phases li {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 8px;
+  color: var(--muted);
+  background: var(--panel);
+}
+
+.phases li.done {
+  color: var(--resp);
+  border-color: var(--resp-soft);
+}
+
+.phases li.now {
+  color: var(--panel);
+  background: var(--resp);
+  border-color: var(--resp);
+  font-weight: 700;
+}
+
+.phases li.absent {
+  opacity: 0.45;
 }
 
 .detail-route {
@@ -1459,6 +1583,10 @@ main.wrap {
   border-left-color: var(--gray);
 }
 
+.caption.k-response {
+  border-left-color: var(--resp);
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -1791,6 +1919,10 @@ main.wrap {
 
 .chip.k-defense {
   color: var(--ok);
+}
+
+.chip.k-incident {
+  color: var(--resp);
 }
 
 .chip.current {

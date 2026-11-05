@@ -1,4 +1,5 @@
 import { defineScenario } from '../types'
+import { CSIRT, IR_TABLE, ir } from './incident'
 
 // メール送信：送信元なりすまし
 // 図中のIPアドレス（192.0.2.0/24、198.51.100.0/24、203.0.113.0/24）とドメイン（example.*）は、
@@ -49,19 +50,37 @@ export const mail = defineScenario({
       name: 'DNS',
       sub: 'example.co.jp',
     },
+    CSIRT,
   ],
   summary: {
     normal: '正規のメールを、受信MTAがSPF・DKIM・DMARCで検証して受け入れる流れです。',
     attack: '送信ドメイン認証を設定していないドメインを詐称し、取引先に偽の請求メールを送ります（ビジネスメール詐欺、BEC）。',
     defense: '送信側がSPF・DKIM・DMARCを設定していると、詐称メールは受信側で拒否されます。',
+    incident:
+      '自社のドメインをかたった偽の請求メールが、取引先に届いたあとの対応です。取引先への連絡で被害を防ぎ、送信ドメイン認証を整えて再発を防ぎます。',
   },
   states: [
     {
       id: 'verdict',
       title: '受信MTAの判定',
       columns: ['検査', '結果'],
+      modes: ['normal', 'attack', 'defense'],
       initial: { normal: UNCHECKED, attack: UNCHECKED, defense: UNCHECKED },
     },
+    {
+      id: 'records',
+      title: 'example.co.jp のDNSレコード',
+      columns: ['種類', '登録内容'],
+      modes: ['incident'],
+      initial: {
+        incident: [
+          ['SPF', '登録していない', 'attack'],
+          ['DKIM', '登録していない', 'attack'],
+          ['DMARC', '登録していない', 'attack'],
+        ],
+      },
+    },
+    IR_TABLE,
   ],
   steps: {
     normal: [
@@ -314,6 +333,114 @@ export const mail = defineScenario({
         ],
       },
     ],
+    incident: [
+      {
+        from: 'rcv',
+        to: 'csirt',
+        kind: 'response',
+        phase: 'detect',
+        label: '問合せ',
+        title: '取引先からの問合せで気付く',
+        fields: [
+          ['連絡元', '取引先の経理担当者'],
+          ['内容', '「振込先変更のメールは本当か」'],
+          ['受付', 'CSIRTの連絡窓口（PoC）'],
+        ],
+        note: '社外からの連絡を確実に受けられるよう、CSIRTは連絡窓口（PoC）を決めて、取引先などに知らせておきます。',
+        send: '取引先：届いたメールを不審に思った担当者が、自社の窓口に電話で問い合わせます。',
+        receive: 'CSIRT：問合せを受け付けて、調査を始めます。',
+        changes: [ir('detect', '取引先から、振込先変更メールの問合せ')],
+      },
+      {
+        from: 'csirt',
+        to: 'mta',
+        kind: 'response',
+        phase: 'triage',
+        label: 'ログを確認',
+        title: '自社から送ったメールかを確かめる',
+        fields: [
+          ['確認', '自社の送信MTAのログに、該当するメールがない'],
+          ['判断', '自社のドメインを詐称した偽メール（ビジネスメール詐欺）'],
+          ['影響', 'ほかの取引先にも届いている恐れ。優先度：高（金銭の被害）'],
+        ],
+        note: '自社のメールサーバが乗っ取られて送られたのか、ドメインを詐称して外から送られたのかで、対応が大きく変わります。',
+        send: 'CSIRT：自社の送信MTAのログを調べます。',
+        receive: '正規送信MTA：その時刻に、その宛先へメールを送った記録はありません。自社のシステムからではなく、ドメインを詐称されたと分かります。',
+        changes: [ir('triage', '自社からの送信ではない → ドメインの詐称。優先度：高')],
+      },
+      {
+        from: 'csirt',
+        to: 'rcv',
+        kind: 'response',
+        phase: 'contain',
+        label: '振込を止める連絡',
+        title: '被害が出る前に止める',
+        fields: [
+          ['取引先へ', '振込先は変えていない。振り込まないでほしい'],
+          ['ほかの取引先へ', '同じ偽メールに注意するよう連絡'],
+          ['連絡の手段', 'メールではなく、登録済みの電話番号で'],
+        ],
+        note: '偽メールの返信先は攻撃者につながっている恐れがあるので、連絡はメール以外の、あらかじめ分かっている手段で行います。',
+        send: 'CSIRT：取引先に電話で、偽メールであることと、振り込まないでほしいことを伝えます。',
+        receive: '取引先：偽メールを削除し、振込を取りやめます。',
+        changes: [ir('contain', '取引先に電話で連絡し、振込を止めた')],
+      },
+      {
+        from: 'rcv',
+        to: 'csirt',
+        kind: 'response',
+        phase: 'preserve',
+        label: '偽メールの原本',
+        title: '偽メールを証拠として保全する',
+        fields: [
+          ['受け取るもの', '偽メールの原本（ヘッダをすべて含むファイル）'],
+          ['ヘッダで分かること', 'Received行の送信元IP 198.51.100.66、認証の結果 spf=none'],
+          ['記録', 'ハッシュ値と、受け取った日時'],
+        ],
+        note: '転送すると、ヘッダが書き換わったり失われたりします。ヘッダをすべて含む原本のファイルで受け取ります。',
+        send: '取引先：偽メールを、ヘッダをすべて含む原本のファイルで送ります。',
+        receive: 'CSIRT：ヘッダから送信元のIPアドレスと認証の結果を確かめ、ハッシュ値を付けて保管します。',
+        changes: [ir('preserve', '偽メールの原本を受け取り、ハッシュ値を付けて保管')],
+      },
+      {
+        from: 'csirt',
+        to: 'csirt',
+        kind: 'response',
+        phase: 'report',
+        label: '報告',
+        title: '警察や関係機関に知らせる',
+        fields: [
+          ['警察', '都道府県警察のサイバー犯罪相談窓口に相談'],
+          ['情報共有', 'JPCERT/CC や IPA に、手口と送信元を報告'],
+          ['公表', '自社サイトで、偽メールへの注意を呼びかける'],
+        ],
+        note: '同じ手口の被害を防ぐため、手口の情報を関係機関と共有し、自社サイトでも注意を呼びかけます。',
+        receive: 'CSIRT：経営層に報告し、警察に相談します。JPCERT/CC にも報告し、自社サイトで注意を呼びかけます。',
+        changes: [ir('report', '経営層、警察、JPCERT/CCへ。自社サイトで注意喚起')],
+      },
+      {
+        from: 'csirt',
+        to: 'dns',
+        kind: 'response',
+        phase: 'improve',
+        label: 'レコードを公開',
+        title: '送信ドメイン認証を整える',
+        fields: [
+          ['SPF', 'v=spf1 ip4:203.0.113.25 -all'],
+          ['DKIM', '送信MTAで署名し、公開鍵をDNSに登録'],
+          ['DMARC', 'p=none で集計レポートを見ながら、quarantine、reject と強める'],
+        ],
+        note: 'いきなり reject にすると、正規のメールまで届かなくなることがあります。まず none でレポートを集め、自社の正規の送信元をすべて把握してから強めます。',
+        send: 'CSIRT：DNSに、SPF・DKIM・DMARCのレコードを登録するよう指示します。',
+        receive: 'DNS：レコードを公開します。以後、自社ドメインを詐称したメールは、受信側で拒否されやすくなります。',
+        changes: [
+          { table: 'records', key: 'SPF', value: 'v=spf1 ip4:203.0.113.25 -all', tone: 'defense' },
+          { table: 'records', key: 'DKIM', value: '公開鍵を登録', tone: 'defense' },
+          { table: 'records', key: 'DMARC', value: 'p=none から始めて reject へ', tone: 'defense' },
+          ir('improve', 'SPF・DKIM・DMARCを公開し、DMARCを段階的に強める'),
+        ],
+      },
+    ],
   },
   points: [
     'SPFはメール転送で失敗しやすく、DKIMは本文が改変されない限り転送に強い',
@@ -321,12 +448,19 @@ export const mail = defineScenario({
     'OP25B（Outbound Port 25 Blocking）と、サブミッションポート587＋SMTP-AUTHの組合せもよく問われる',
     'SPFの -all（許可外は失敗）と ~all（ソフトフェイル）の違い',
   ],
+  incidentPoints: [
+    'ビジネスメール詐欺（BEC）では、振込先の変更を、メール以外の手段（登録済みの電話番号など）で確かめる',
+    '偽メールの調査には、ヘッダを含む原本が必要。転送ではなく、原本のファイルで受け取る',
+    '自社ドメインの詐称を防ぐのは、自社が公開するSPF・DKIM・DMARC。DMARCは none から段階的に強める',
+    '被害の相談は警察のサイバー犯罪相談窓口へ。手口の情報はJPCERT/CCやIPAと共有する',
+  ],
   topology: {
     map: {
       mta: 'mail',
       atk: 'ext2',
       rcv: 'ext1',
       dns: 'adns',
+      csirt: 'soc',
     },
     shields: ['ext1', 'adns'],
     devices: {

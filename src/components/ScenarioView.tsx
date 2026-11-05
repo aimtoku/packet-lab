@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Mode, Scenario } from '../types'
-import { MODES, occurrencesOf, scenarioTerms, TERM_BY_ID, type Occurrence } from '../glossary/match'
+import { MODE_LABEL, MODES, occurrencesOf, scenarioTerms, TERM_BY_ID, type Occurrence } from '../glossary/match'
 import { stateAt } from '../playback/state'
 import { dwellFor, loadSpeed, prefersReducedMotion, saveSpeed, SPEEDS, type Speed } from '../playback/speed'
 import { subStepsFor, type SubStep } from '../playback/substeps'
@@ -15,13 +15,7 @@ import { StepDetail } from './StepDetail'
 import { TermText } from './TermText'
 import { Topology } from './Topology'
 
-const MODE_BUTTONS: readonly { id: Mode; label: string }[] = [
-  { id: 'normal', label: '正常' },
-  { id: 'attack', label: '攻撃' },
-  { id: 'defense', label: '対策' },
-]
-
-const NEXT_MODE: Record<Mode, Mode> = { normal: 'attack', attack: 'defense', defense: 'normal' }
+const NEXT_MODE: Record<Mode, Mode> = { normal: 'attack', attack: 'defense', defense: 'incident', incident: 'normal' }
 
 /** 用語一覧が左に常に表示される幅（styles.css と合わせる） */
 const SIDEBAR_QUERY = '(min-width: 1200px)'
@@ -268,10 +262,10 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
         <div className="scenario-main">
           <div className="toolbar">
             <div className="modes" role="group" aria-label="表示モード">
-              {MODE_BUTTONS.map((m) => (
-                <button key={m.id} type="button" aria-pressed={m.id === mode} onClick={() => changeMode(m.id)}>
-                  <span className={`dot k-${m.id}`} aria-hidden="true" />
-                  {m.label}
+              {MODES.map((m) => (
+                <button key={m} type="button" className={`k-${m}`} aria-pressed={m === mode} onClick={() => changeMode(m)}>
+                  <span className={`dot k-${m}`} aria-hidden="true" />
+                  {MODE_LABEL[m]}
                 </button>
               ))}
             </div>
@@ -280,7 +274,7 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
             </button>
           </div>
           <p className="summary">
-            <strong>{MODE_BUTTONS.find((m) => m.id === mode)?.label}：</strong>
+            <strong>{mode === 'incident' ? 'インシデント対応' : MODE_LABEL[mode]}：</strong>
             <TermText text={scenario.summary[mode]} activeTerm={term} onTerm={selectFromText} />
           </p>
 
@@ -375,6 +369,12 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
                   <span className="swatch k-discarded" aria-hidden="true" />
                   破棄
                 </li>
+                {mode === 'incident' && (
+                  <li>
+                    <span className="swatch k-response" aria-hidden="true" />
+                    インシデント対応（連絡・指示・調査）
+                  </li>
+                )}
                 {term && (
                   <li>
                     <span className="swatch-dot" aria-hidden="true" />
@@ -386,9 +386,9 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
           </div>
 
           <section className="points" aria-labelledby="points-title" ref={pointsRef}>
-            <h2 id="points-title">午後で押さえる論点</h2>
+            <h2 id="points-title">{mode === 'incident' ? 'インシデント対応で押さえる論点' : '午後で押さえる論点'}</h2>
             <ul>
-              {scenario.points.map((p, i) => (
+              {(mode === 'incident' ? scenario.incidentPoints : scenario.points).map((p, i) => (
                 <li key={i}>
                   <TermText text={p} activeTerm={term} onTerm={selectFromText} />
                 </li>

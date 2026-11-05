@@ -1,4 +1,5 @@
 import { defineScenario } from '../types'
+import { CSIRT, IR_TABLE, ir } from './incident'
 
 // 社内LAN：ARPスプーフィング
 // IPアドレスはプライベート用（RFC 1918）と説明用（RFC 5737）、MACアドレスは説明用に予約された範囲（RFC 7042）です。
@@ -19,11 +20,14 @@ export const arp = defineScenario({
     { id: 'sw', name: 'L2スイッチ', sub: 'DAI対応' },
     { id: 'gw', name: 'ゲートウェイ', sub: '192.168.1.1' },
     { id: 'atk', name: '攻撃者', sub: '社内の不正端末', attacker: true },
+    CSIRT,
   ],
   summary: {
     normal: 'PCが、デフォルトゲートウェイのMACアドレスをARPで調べてから、社外宛てのパケットを送る流れです。',
     attack: '攻撃者が偽のARP応答を送り続け、PCとゲートウェイの間の通信を自分の端末に経由させます（ARPスプーフィング）。',
     defense: 'L2スイッチのDAI（Dynamic ARP Inspection）が、DHCPスヌーピングで記録した対応と合わないARPを捨てます。',
+    incident:
+      '社内に持ち込まれた不正端末が、ARPスプーフィングで通信を盗聴していたあとの対応です。スイッチのポートから不正端末を特定して切り離し、端末を証拠として保全します。',
   },
   states: [
     {
@@ -33,6 +37,7 @@ export const arp = defineScenario({
       initial: {
         attack: [['192.168.1.1', `${GW_MAC}（ゲートウェイ）`]],
         defense: [['192.168.1.1', `${GW_MAC}（ゲートウェイ）`]],
+        incident: [['192.168.1.1', `${ATK_MAC}（攻撃者）`, 'attack']],
       },
     },
     {
@@ -42,6 +47,7 @@ export const arp = defineScenario({
       initial: {
         attack: [['192.168.1.10', `${PC_MAC}（PC）`]],
         defense: [['192.168.1.10', `${PC_MAC}（PC）`]],
+        incident: [['192.168.1.10', `${ATK_MAC}（攻撃者）`, 'attack']],
       },
     },
     {
@@ -52,6 +58,20 @@ export const arp = defineScenario({
       initial: { defense: [['1（ゲートウェイ）', `${GW_MAC}・192.168.1.1（ARP ACLで登録）`]] },
     },
     { id: 'sw-log', title: 'L2スイッチのログ（DAI）', columns: ['届いたARP', '処理'], modes: ['defense'] },
+    {
+      id: 'sw-mac',
+      title: 'L2スイッチのMACアドレステーブル',
+      columns: ['ポート', 'つながっている端末'],
+      modes: ['incident'],
+      initial: {
+        incident: [
+          ['ポート1', `${GW_MAC}（ゲートウェイ）`],
+          ['ポート3', `${PC_MAC}（PC）`],
+          ['ポート5', `${ATK_MAC}（登録のない端末）`, 'attack'],
+        ],
+      },
+    },
+    IR_TABLE,
   ],
   steps: {
     normal: [
@@ -302,6 +322,131 @@ export const arp = defineScenario({
         },
       },
     ],
+    incident: [
+      {
+        from: 'sw',
+        to: 'csirt',
+        kind: 'response',
+        phase: 'detect',
+        label: 'アラート',
+        title: 'ARPの異常を検知する',
+        fields: [
+          ['きっかけ', 'ゲートウェイのIPアドレスに対応するMACアドレスが、別の値に変わった'],
+          ['検知した仕組み', 'ARPを監視するツールと、L2スイッチのログ'],
+          ['通知先', 'CSIRT'],
+        ],
+        note: 'ゲートウェイのMACアドレスは、ふつうは変わりません。変化を監視していれば、ARPスプーフィングに気付けます。',
+        send: 'L2SW：ARPを監視する仕組みが、ゲートウェイ（192.168.1.1）のMACアドレスが変わったことを検知し、CSIRTに知らせます。',
+        receive: 'CSIRT：ARPスプーフィングの疑いとして、対応を始めます。',
+        changes: [ir('detect', 'ゲートウェイのMACアドレスの変化を検知')],
+      },
+      {
+        from: 'csirt',
+        to: 'sw',
+        kind: 'response',
+        phase: 'triage',
+        label: '端末を特定',
+        title: 'MACアドレスから、端末の場所を探す',
+        fields: [
+          ['手がかり', '偽のMACアドレス 00:00:5e:00:53:66'],
+          ['調べる表', 'L2スイッチのMACアドレステーブル → ポート5'],
+          ['判断', '資産台帳にない端末 → 持ち込まれた不正端末'],
+        ],
+        note: 'MACアドレステーブルを見れば、そのMACアドレスの端末が、スイッチのどのポートにつながっているかが分かります。',
+        send: 'CSIRT：L2スイッチのMACアドレステーブルで、00:00:5e:00:53:66 がつながるポートを調べます。',
+        receive: 'L2SW：ポート5だと分かります。資産台帳に登録のない端末です。',
+        changes: [ir('triage', 'ポート5の不正端末と特定。盗聴の恐れ')],
+      },
+      {
+        from: 'csirt',
+        to: 'sw',
+        kind: 'response',
+        phase: 'contain',
+        label: 'ポートを無効化',
+        title: '不正端末を切り離す',
+        fields: [
+          ['操作', 'ポート5を無効にする（シャットダウン）'],
+          ['注意', '不正端末の電源は切らない（メモリの中の証拠が消えるため）'],
+        ],
+        note: 'ネットワークから切り離せば、盗聴は止まります。電源を切ると、メモリの中の証拠が失われるので切りません。',
+        send: 'CSIRT：L2スイッチのポート5を無効にするよう指示します。',
+        receive: 'L2SW：ポート5を無効にします。不正端末はネットワークから切り離され、盗聴できなくなります。',
+        changes: [
+          { table: 'sw-mac', key: 'ポート5', value: '無効化（不正端末を切り離した）', tone: 'defense' },
+          ir('contain', 'ポート5を無効化（電源は切らない）'),
+        ],
+      },
+      {
+        from: 'csirt',
+        to: 'atk',
+        kind: 'response',
+        phase: 'preserve',
+        label: '端末を保全',
+        title: '不正端末を証拠として保全する',
+        fields: [
+          ['順番', '揮発性の高いものから：メモリ → ディスク'],
+          ['方法', 'メモリの内容を取得し、ディスクは複製を作って、複製を調べる'],
+          ['記録', 'ハッシュ値、取得の日時と担当者、保管場所'],
+        ],
+        note: '電源を切るとメモリの内容は失われるので、メモリから先に取得します。調査は複製で行い、元のディスクは書き換えません。',
+        point: '証拠保全は、揮発性の高い順（メモリ、ネットワークの接続の状態、ディスク）に行います。調査は複製に対して行い、原本は書き換えません。',
+        send: 'CSIRT：不正端末を回収し、メモリの内容とディスクの複製を取得します。',
+        receive: '攻撃者（不正端末）：盗聴したデータや攻撃のツールが残っていないかを、複製を使って調べます。',
+        changes: [ir('preserve', 'メモリとディスクの複製を取得し、ハッシュ値を記録')],
+      },
+      {
+        from: 'csirt',
+        to: 'pc',
+        kind: 'response',
+        phase: 'recover',
+        label: 'ARPテーブルを修正',
+        title: '通信を元に戻す',
+        fields: [
+          ['PCとゲートウェイ', 'ARPテーブルを消去して、正しい対応を覚え直す'],
+          ['パスワード', '暗号化されていない通信で使ったパスワードを変更'],
+        ],
+        note: '盗聴されていた間に流れた情報を洗い出し、必要ならパスワードなどを変更します。',
+        send: 'CSIRT：PCとゲートウェイのARPテーブルを消去するよう指示します。',
+        receive: 'PC：ARPテーブルを消して覚え直し、ゲートウェイの正しいMACアドレス（00:00:5e:00:53:01）に戻ります。',
+        changes: [
+          { table: 'pc-arp', key: '192.168.1.1', value: '00:00:5e:00:53:01（ゲートウェイ）', tone: 'defense' },
+          { table: 'gw-arp', key: '192.168.1.10', value: '00:00:5e:00:53:0a（PC）', tone: 'defense' },
+          ir('recover', 'ARPテーブルを正しい内容に戻し、パスワードを変更'),
+        ],
+      },
+      {
+        from: 'csirt',
+        to: 'csirt',
+        kind: 'response',
+        phase: 'report',
+        label: '報告',
+        title: '内部不正として報告する',
+        fields: [
+          ['社内', '経営層、人事・法務部門（持ち込んだ人の調査）'],
+          ['社外', '必要に応じて、警察に相談'],
+        ],
+        note: '社内の人による不正の疑いがあるときは、人事・法務部門と連携し、証拠の扱いと本人への聞き取りを慎重に進めます。',
+        receive: 'CSIRT：経営層に報告します。内部不正の可能性があるので、人事・法務部門と連携して調べます。',
+        changes: [ir('report', '経営層へ報告。人事・法務部門と連携')],
+      },
+      {
+        from: 'csirt',
+        to: 'sw',
+        kind: 'response',
+        phase: 'improve',
+        label: '再発防止',
+        title: '許可した端末だけをつなげる',
+        fields: [
+          ['L2スイッチ', 'DAI、DHCPスヌーピング、ポートセキュリティ'],
+          ['接続の認証', 'IEEE 802.1X で、認証された端末だけをつなげる'],
+          ['管理', '使っていないポートを無効にし、資産台帳と照合する'],
+        ],
+        note: '不正端末をつなげない対策と、つながれても攻撃を止める対策を組み合わせます。',
+        send: 'CSIRT：L2スイッチの設定と、端末をつなぐルールを見直します。',
+        receive: 'L2SW：DAIとIEEE 802.1Xを有効にし、登録のない端末はつながらないようにします。',
+        changes: [ir('improve', 'DAI、IEEE 802.1X、使っていないポートの無効化')],
+      },
+    ],
   },
   points: [
     'ARPはIPアドレスからMACアドレスを調べるプロトコル。認証がないため、偽の応答でARPテーブルを書き換えられる',
@@ -309,8 +454,14 @@ export const arp = defineScenario({
     'ARPスプーフィングは同じLANの中の攻撃。社外から直接は行えないため、侵入済みの端末からの横展開で使われる',
     '経由された通信も、TLSで暗号化されていれば中身は読まれない。ただし証明書の警告を無視すると、中間者攻撃が成立する',
   ],
+  incidentPoints: [
+    'MACアドレスから端末の場所を探すには、L2スイッチのMACアドレステーブルで、つながっているポートを調べる',
+    '不正端末はネットワークから切り離すが、電源は切らない。揮発性の高いメモリの内容から先に保全する',
+    '内部不正の調査は、人事・法務部門と連携し、証拠の扱いに注意する',
+    '再発防止：DAI、ポートセキュリティ、IEEE 802.1X、使っていないポートの無効化',
+  ],
   topology: {
-    map: { pc: 'pc', sw: 'sw', gw: 'fw', atk: 'lan2' },
+    map: { pc: 'pc', sw: 'sw', gw: 'fw', atk: 'lan2', csirt: 'soc' },
     devices: {
       lan2: { type: 'pc', name: '攻撃者', sub: '不正端末' },
     },

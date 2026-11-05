@@ -121,6 +121,24 @@ export function deviceShapes(node: NodeSpec, attacker: boolean): ReactNode[] {
       out.push(<path key="wifi" className="wifi" d={`M${x - 5},${y - 20} q5,-4 10,0 M${x - 9},${y - 24} q9,-7 18,0`} />)
       break
     }
+    case 'team': {
+      // CSIRT：奥と手前に2人。機器ではないので、立体の箱ではなく人の形で描く
+      const person = (key: string, px: number, py: number, scale: number) => {
+        const w = 7 * scale
+        const h = 12 * scale
+        out.push(
+          <path
+            key={`${key}-body`}
+            className="person-body"
+            d={`M${px - w},${py} Q${px - w},${py - h} ${px},${py - h} Q${px + w},${py - h} ${px + w},${py} Z`}
+          />,
+          <circle key={`${key}-head`} className="person-head" cx={px} cy={py - h - 4.4 * scale} r={4.2 * scale} />,
+        )
+      }
+      person('back', x + 7, y - 4, 0.85)
+      person('front', x - 3, y, 1)
+      break
+    }
     case 'cloud': {
       out.push(
         <g key="outline" className="cloud-outline">

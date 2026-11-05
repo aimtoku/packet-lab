@@ -1,5 +1,5 @@
-/** 表示モード：正常な通信、攻撃、対策 */
-export type Mode = 'normal' | 'attack' | 'defense'
+/** 表示モード：正常な通信、攻撃、対策、事後対応（攻撃が成功したあとのインシデント対応） */
+export type Mode = 'normal' | 'attack' | 'defense' | 'incident'
 
 /**
  * ステップの種類。矢印の色と意味が決まる。
@@ -8,11 +8,27 @@ export type Mode = 'normal' | 'attack' | 'defense'
  * - blocked：対策によって止められた攻撃
  * - defense：対策が働いている通信
  * - discarded：届いたが捨てられた通信
+ * - response：インシデント対応（検知、封じ込め、証拠保全など）
  */
-export type StepKind = 'normal' | 'attack' | 'blocked' | 'defense' | 'discarded'
+export type StepKind = 'normal' | 'attack' | 'blocked' | 'defense' | 'discarded' | 'response'
 
-/** 構成図に描く機器の種類 */
-export type DeviceType = 'server' | 'pc' | 'laptop' | 'switch' | 'fw' | 'ap' | 'cloud'
+/** インシデント対応の段階 */
+export type Phase = 'detect' | 'triage' | 'contain' | 'preserve' | 'recover' | 'report' | 'improve'
+
+export const PHASES: readonly Phase[] = ['detect', 'triage', 'contain', 'preserve', 'recover', 'report', 'improve']
+
+export const PHASE_LABEL: Record<Phase, string> = {
+  detect: '検知',
+  triage: 'トリアージ',
+  contain: '封じ込め',
+  preserve: '証拠保全',
+  recover: '根絶・復旧',
+  report: '報告',
+  improve: '再発防止',
+}
+
+/** 構成図に描く機器の種類（team は機器ではなく、CSIRTなどの人の集まり） */
+export type DeviceType = 'server' | 'pc' | 'laptop' | 'switch' | 'fw' | 'ap' | 'cloud' | 'team'
 
 /** 構成図上の機器の配置場所 */
 export type NodeId =
@@ -31,15 +47,18 @@ export type NodeId =
   | 'laptop'
   | 'ap'
   | 'fakeap'
+  | 'soc'
 
-/** シナリオで使うときだけ表示する機器 */
-export type OptionalNodeId = 'ext1' | 'ext2' | 'lan2'
+/** シナリオで使うときだけ表示する機器（soc はCSIRTの席。ケーブルではつながない） */
+export type OptionalNodeId = 'ext1' | 'ext2' | 'lan2' | 'soc'
 
 export interface Actor<A extends string> {
   id: A
   name: string
   sub: string
   attacker?: boolean
+  /** このモードでだけ登場する（CSIRTは事後対応だけ） */
+  onlyIn?: readonly Mode[]
 }
 
 /**
@@ -94,6 +113,9 @@ export interface Wire {
 /** 状態の変化の色分け */
 export type Tone = 'normal' | 'attack' | 'defense'
 
+/** 状態の表の、最初の行 [項目, 値] または [項目, 値, 色分け] */
+export type StateRowInit = readonly [string, string] | readonly [string, string, Tone]
+
 /** 機器の中の状態（ARPテーブル、DNSのキャッシュなど）の表 */
 export interface StateTable {
   id: string
@@ -102,7 +124,7 @@ export interface StateTable {
   /** この表を表示するモード。省略するとすべてのモード */
   modes?: readonly Mode[]
   /** モードごとの、最初の状態 */
-  initial?: Partial<Record<Mode, readonly (readonly [string, string])[]>>
+  initial?: Partial<Record<Mode, readonly StateRowInit[]>>
 }
 
 /** ステップの結果として、状態の表の1行を書き換える（なければ追加する） */
@@ -135,6 +157,8 @@ export interface Step<A extends string> {
   receive?: string
   /** 阻止されるステップで、パケットが止められる機器。省略すると宛先の手前 */
   blockedAt?: NodeId
+  /** インシデント対応の段階（事後対応のステップに書く） */
+  phase?: Phase
   /** パケットの見出し */
   wire?: Wire
   /** このステップで変わる状態 */
@@ -164,6 +188,8 @@ export interface Scenario<A extends string = string> {
   summary: Record<Mode, string>
   steps: Record<Mode, readonly Step<A>[]>
   points: readonly string[]
+  /** 事後対応（インシデント対応）で押さえる論点 */
+  incidentPoints: readonly string[]
   topology: ScenarioTopology<A>
   /** 機器の中の状態の表 */
   states?: readonly StateTable[]

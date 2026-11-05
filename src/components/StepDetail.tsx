@@ -1,4 +1,4 @@
-import type { Mode, Scenario, StepKind } from '../types'
+import { PHASE_LABEL, PHASES, type Mode, type Scenario, type StepKind } from '../types'
 import type { SubStep } from '../playback/substeps'
 import { PacketLayers } from './PacketLayers'
 import { TermText } from './TermText'
@@ -9,12 +9,14 @@ export const KIND_LABEL: Record<StepKind, string> = {
   blocked: '攻撃を阻止',
   defense: '対策が働く',
   discarded: '破棄',
+  response: 'インシデント対応',
 }
 
 const NEXT_LABEL: Record<Mode, string> = {
   normal: '攻撃を見る',
   attack: '対策を見る',
-  defense: '最初から',
+  defense: '事後対応を見る',
+  incident: '最初から',
 }
 
 interface Props {
@@ -29,6 +31,28 @@ interface Props {
   onNext: () => void
   activeTerm: string | null
   onTerm: (termId: string) => void
+}
+
+/**
+ * 事後対応の段階（検知 → … → 再発防止）。今のステップの段階を強調し、済んだ段階に印を付ける。
+ * このシナリオで扱わない段階は薄く表示する。
+ */
+function PhaseStrip({ steps, index }: { steps: Scenario['steps'][Mode]; index: number }) {
+  const current = steps[index]?.phase
+  const seen = new Set(steps.slice(0, index).map((s) => s.phase))
+  const present = new Set(steps.map((s) => s.phase))
+  return (
+    <ol className="phases" aria-label="インシデント対応の段階">
+      {PHASES.map((p) => {
+        const state = p === current ? 'now' : seen.has(p) ? 'done' : present.has(p) ? '' : 'absent'
+        return (
+          <li key={p} className={state} aria-current={p === current ? 'step' : undefined}>
+            {PHASE_LABEL[p]}
+          </li>
+        )
+      })}
+    </ol>
+  )
 }
 
 /** 「FW：〜」のような説明文を、機器の名前と内容に分ける */
@@ -57,6 +81,7 @@ export function StepDetail({ scenario, mode, index, subs, sub, onSub, onPrev, on
         <p className="detail-route">
           {step.from === step.to ? `${actorName(step.from)}の中の処理` : `${actorName(step.from)} → ${actorName(step.to)}`}
         </p>
+        {mode === 'incident' && step.phase && <PhaseStrip steps={steps} index={index} />}
       </header>
       <div className="detail-body">
         <section aria-labelledby="timeline-title">
