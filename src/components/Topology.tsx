@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import type { Mode, NodeId, Scenario } from '../types'
+import { MODES } from '../glossary/match'
 import { usePacketTravel } from '../hooks/usePacketTravel'
 import { stopIndex, type SubStep } from '../playback/substeps'
 import {
@@ -49,6 +50,15 @@ function crossPosition(a: Point, b: Point, stop: Point): Point {
 export function Topology({ scenario, mode, index, subs, sub, travelMs, onArrive, arrived }: Props) {
   const nodes = useMemo(() => nodesFor(scenario), [scenario])
   const edges = useMemo(() => edgesFor(scenario), [scenario])
+  /**
+   * このシナリオのどこかで使う機器（登場人物の機器と、どれかのモードの経路上の機器）。
+   * 使わない機器は描かない（図をすっきりさせ、関係する機器だけに目が行くように）
+   */
+  const used = useMemo(() => {
+    const set = new Set<NodeId>(Object.values(scenario.topology.map))
+    for (const m of MODES) for (const s of scenario.steps[m]) stepRoute(scenario, nodes, s.from, s.to).forEach((id) => set.add(id))
+    return set
+  }, [scenario, nodes])
   const attackers = useMemo(() => attackerNodes(scenario), [scenario])
   const steps = scenario.steps[mode]
   const routes = useMemo(() => steps.map((s) => stepRoute(scenario, nodes, s.from, s.to)), [scenario, nodes, steps])
@@ -68,7 +78,7 @@ export function Topology({ scenario, mode, index, subs, sub, travelMs, onArrive,
 
   if (!step) return null
 
-  /** このシナリオのどこかのステップで使う機器。使わない機器は薄く表示する */
+  /** このモードで使う機器。使わない機器は薄く表示する */
   const involved = new Set<NodeId>([...Object.values(scenario.topology.map), ...routes.flat()])
   // 事後対応では、そのモードのステップで使う機器だけをはっきり表示する
   if (mode === 'incident') {
@@ -78,14 +88,18 @@ export function Topology({ scenario, mode, index, subs, sub, travelMs, onArrive,
   // 今パケットがいる機器を、輪で示す
   const focusId = current?.node ?? scenario.topology.map[step.to]
   const height = scenario.topology.mobile ? VIEW_HEIGHT_MOBILE : VIEW_HEIGHT
-  const zones = ZONES.filter(
-    (z) =>
-      (z.id !== 'ext' || scenario.topology.devices?.ext1 || scenario.topology.devices?.ext2) &&
-      (z.id !== 'mobile' || scenario.topology.mobile),
+  // 区域は、描く機器が1つでもあるものだけを描く
+  const zones = ZONES.filter((z) =>
+    [...used].some((id) => {
+      const n = nodes[id]
+      return n && n.type !== 'team' && n.x >= z.x && n.x <= z.x + z.w && n.y >= z.y && n.y <= z.y + z.h
+    }),
   )
   // 奥（上）の機器から順に描き、手前の機器が重なるようにする。このモードに登場しない人の席は描かない
   const offstage = offstageNodes(scenario, mode)
-  const order = (Object.keys(nodes) as NodeId[]).filter((id) => !offstage.includes(id)).sort((a, b) => nodes[a]!.y - nodes[b]!.y)
+  const order = (Object.keys(nodes) as NodeId[])
+    .filter((id) => used.has(id) && !offstage.includes(id))
+    .sort((a, b) => nodes[a]!.y - nodes[b]!.y)
   const isDim = (id: NodeId) => !involved.has(id) || (attackers.includes(id) && mode === 'normal')
   // 阻止されるときは、止める機器までの経路だけを描く
   const drawn = stop === null ? points : points.slice(0, Math.max(stop, 1) + 1)
@@ -104,7 +118,7 @@ export function Topology({ scenario, mode, index, subs, sub, travelMs, onArrive,
           </text>
         </g>
       ))}
-      {edges.filter(([a, b]) => nodes[a] && nodes[b]).map(([a, b]) => {
+      {edges.filter(([a, b]) => used.has(a) && used.has(b) && nodes[a] && nodes[b]).map(([a, b]) => {
         const [x1, y1] = anchorOf(nodes[a]!)
         const [x2, y2] = anchorOf(nodes[b]!)
         return <line key={`${a}-${b}`} x1={x1} y1={y1} x2={x2} y2={y2} className="cable" />
