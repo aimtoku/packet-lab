@@ -295,7 +295,7 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
           </div>
 
           {view === 'summary' && learning && <Summary scenario={scenario} learning={learning} activeTerm={term} onTerm={selectFromText} />}
-          {view === 'quiz' && learning && <Quiz learning={learning} activeTerm={term} onTerm={selectFromText} />}
+          {view === 'quiz' && learning && <Quiz quiz={learning.quiz} activeTerm={term} onTerm={selectFromText} />}
 
           {view === 'diagram' && (
             <>

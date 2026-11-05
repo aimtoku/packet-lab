@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { scenarios } from '../scenarios'
+import { topicsMentioning } from '../topics'
 import { occurrencesOf, scenarioTerms, scenariosMentioning, splitTerms, termIdsIn } from './match'
 import { TERMS } from './terms'
 
@@ -19,8 +20,8 @@ describe('用語集', () => {
     for (const term of TERMS) expect(term.description.trim(), term.id).not.toBe('')
   })
 
-  it('どの用語も、いずれかのシナリオに出てくる（押したときの移動先がある）', () => {
-    const orphans = TERMS.filter((t) => scenariosMentioning(t.id).length === 0).map((t) => t.id)
+  it('どの用語も、いずれかのシナリオか解説ページに出てくる（押したときの移動先がある）', () => {
+    const orphans = TERMS.filter((t) => scenariosMentioning(t.id).length === 0 && topicsMentioning(t.id).length === 0).map((t) => t.id)
     expect(orphans).toEqual([])
   })
 
