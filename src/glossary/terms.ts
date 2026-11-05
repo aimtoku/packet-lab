@@ -457,6 +457,129 @@ export const TERMS: readonly Term[] = [
     description: 'Webアプリケーションへの通信を検査し、XSSやSQLインジェクションなどの攻撃のパターンを検知して遮断する装置やサービス。',
   },
 
+  // Webアプリとデータベース
+  {
+    id: 'sql-injection',
+    name: 'SQLインジェクション',
+    aliases: ['SQLインジェクション'],
+    description:
+      '入力値をそのままつなげてSQL文を組み立てるWebアプリケーションに、SQLの記号や命令を含む値を入力して、SQL文の構造を変えてしまう攻撃。データベースの情報の読み出しや改ざん、認証の回避に悪用される。',
+  },
+  {
+    id: 'placeholder',
+    name: 'プレースホルダ（バインド機構）',
+    aliases: ['プレースホルダ', 'バインド機構'],
+    description:
+      'SQL文の値を入れる場所を記号（? や $1）で示して、先にSQL文の構造を決め、入力値は後から値としてだけ割り当てる仕組み。SQLインジェクションの根本対策。',
+  },
+  {
+    id: 'least-privilege',
+    name: '最小権限の原則',
+    aliases: ['最小権限'],
+    description: '利用者やプログラムに、仕事に必要な最小限の権限だけを与える考え方。乗っ取られたときの被害の範囲を小さくできる。',
+  },
+  {
+    id: 'salt',
+    name: 'ソルト',
+    aliases: ['ソルト'],
+    description:
+      'パスワードのハッシュ値を計算するときに、利用者ごとに付け加えるランダムな値。同じパスワードでも利用者ごとに異なるハッシュ値になり、レインボーテーブルによる割り出しを難しくする。',
+  },
+  {
+    id: 'stretching',
+    name: 'ストレッチング',
+    aliases: ['ストレッチング'],
+    description:
+      'ハッシュ値の計算を何千回も繰り返して、1回の計算に時間がかかるようにすること。総当たりで元のパスワードを割り出すのに時間をかけさせる。bcrypt、PBKDF2、Argon2 などが使われる。',
+  },
+  {
+    id: 'rainbow-table',
+    name: 'レインボーテーブル',
+    aliases: ['レインボーテーブル'],
+    description: 'パスワードとハッシュ値の対応を、あらかじめ大量に計算しておいた表。ソルトのないハッシュ値から、元のパスワードを素早く割り出すのに使われる。',
+  },
+
+  // シングルサインオン
+  {
+    id: 'sso',
+    name: 'シングルサインオン（SSO）',
+    aliases: ['シングルサインオン', 'SSO'],
+    description:
+      '一度の認証で、複数のサービスを使えるようにする仕組み。認証をIdPに任せ、各サービス（SP）はIdPの認証の結果を信頼する。SAMLやOpenID Connectが使われる。',
+  },
+  {
+    id: 'saml',
+    name: 'SAML',
+    aliases: ['SAML', 'AuthnRequest'],
+    description:
+      '認証の結果を、XMLで書いた署名付きのアサーションで受け渡す標準。SPは AuthnRequest で認証を依頼し、IdPはアサーションを、ブラウザ経由でSPへ届ける（SPとIdPは直接通信しない）。',
+  },
+  {
+    id: 'idp',
+    name: 'IdP（アイデンティティプロバイダ）',
+    aliases: ['IdP'],
+    description: '利用者を認証し、その結果をSPに伝えるサーバやサービス。署名の鍵が盗まれると、どの利用者のアサーションでも偽造できてしまう。',
+  },
+  {
+    id: 'sp',
+    name: 'SP（サービスプロバイダ）',
+    aliases: ['SP'],
+    description: 'IdPの認証の結果を受け取って、利用者にサービスを提供する側。SAMLでは、IdPの証明書を事前に登録して、アサーションの署名を検証する。',
+  },
+  {
+    id: 'assertion',
+    name: 'アサーション',
+    aliases: ['アサーション', 'SAMLResponse'],
+    description:
+      'IdPが「この利用者を、いつ、どの方法で認証したか」を書いて署名した情報。宛先のSP（Audience）、有効期限、どの依頼への応答か（InResponseTo）を含み、SPはこれらと署名を確かめる。',
+  },
+  {
+    id: 'oauth',
+    name: 'OAuth 2.0',
+    aliases: ['OAuth 2.0', 'OAuth'],
+    description: '利用者の同意のもとで、アプリ（クライアント）に、APIを使う権限（アクセストークン）を与える認可の仕組み。それだけでは、本人の認証にはならない。',
+  },
+  {
+    id: 'oidc',
+    name: 'OpenID Connect',
+    aliases: ['OpenID Connect', 'IDトークン'],
+    description:
+      'OAuth 2.0に、認証の結果を伝えるIDトークン（署名付きのJWT）を加えた仕組み。クライアントは、IDトークンの署名、発行者、宛先、有効期限、nonce を検証する。',
+  },
+  {
+    id: 'authorization',
+    name: '認可',
+    aliases: ['認可'],
+    description: '認証した利用者やアプリに、何をしてよいか（権限）を与えること。だれかを確かめる「認証」とは区別する。',
+  },
+  {
+    id: 'access-token',
+    name: 'アクセストークン',
+    aliases: ['アクセストークン'],
+    description: 'OAuth 2.0で、クライアントがAPIを使うときに示す、権限の証明。盗まれると、その権限の範囲でAPIを使われてしまう。',
+  },
+  {
+    id: 'state-param',
+    name: 'stateパラメータ',
+    aliases: ['stateパラメータ'],
+    description:
+      'OAuth 2.0で、クライアントが認可の要求に付けるランダムな値。戻ってきた応答の値と照合して、攻撃者が仕組んだ応答（CSRF）を受け付けないようにする。',
+  },
+  {
+    id: 'pkce',
+    name: 'PKCE',
+    aliases: ['PKCE'],
+    description:
+      'OAuth 2.0の認可コードフローで、クライアントが作った秘密の値（code_verifier）のハッシュ値を最初に送り、トークンの要求で元の値を示させる仕組み。横取りされた認可コードを使えなくする。',
+  },
+  {
+    id: 'shared-responsibility',
+    name: '責任共有モデル',
+    aliases: ['責任共有モデル'],
+    description:
+      'クラウドサービスで、事業者と利用者がセキュリティの責任を分担する考え方。基盤は事業者、利用者のデータ・アカウント・設定は利用者が責任を持つ（分担の範囲は、IaaS・PaaS・SaaSで異なる）。',
+  },
+
   // LAN
   {
     id: 'arp',
@@ -523,6 +646,83 @@ export const TERMS: readonly Term[] = [
     name: '横展開（ラテラルムーブメント）',
     aliases: ['横展開'],
     description: '侵入した端末を足がかりに、同じネットワークの中の別の端末やサーバへ、侵害を広げていくこと。',
+  },
+
+  // 標的型攻撃
+  {
+    id: 'apt',
+    name: '標的型攻撃',
+    aliases: ['標的型攻撃', '標的型メール'],
+    description: '特定の組織をねらい、取引先や業務を装ったメール（標的型メール）などで侵入し、時間をかけて内部に広がって、情報を盗む攻撃。',
+  },
+  {
+    id: 'c2',
+    name: 'C&Cサーバ',
+    aliases: ['C&Cサーバ'],
+    description:
+      '攻撃者が、マルウェアに感染した端末に命令を出し、盗んだ情報を受け取るためのサーバ。通信は、HTTPSなどのふだんの通信に紛れることが多い。',
+  },
+  {
+    id: 'beacon',
+    name: 'ビーコン',
+    aliases: ['ビーコン'],
+    description: '感染した端末のマルウェアが、命令を受け取るためにC&Cサーバへ定期的に送る通信。決まった間隔で同じ宛先への通信が続くことが、検知の手がかりになる。',
+  },
+  {
+    id: 'proxy',
+    name: 'プロキシサーバ',
+    aliases: ['プロキシサーバ', 'プロキシ'],
+    description: '社内の端末に代わって、インターネットのWebサイトへ接続する中継サーバ。通信のログが集まり、利用者の認証やURLフィルタリングもできる。',
+  },
+  {
+    id: 'proxy-auth',
+    name: 'プロキシ認証',
+    aliases: ['プロキシ認証'],
+    description: 'プロキシを使う前に、利用者をIDとパスワードなどで認証すること。認証情報を持たないマルウェアの、外部との通信を止める出口対策になる。',
+  },
+  {
+    id: 'url-filter',
+    name: 'URLフィルタリング',
+    aliases: ['URLフィルタリング', 'URLフィルタ'],
+    description: 'アクセス先のURLやドメインを、カテゴリや一覧と照らし合わせて、許可しないサイトへの接続を止める仕組み。',
+  },
+  {
+    id: 'egress',
+    name: '出口対策',
+    aliases: ['出口対策'],
+    description:
+      '侵入されることを前提に、マルウェアと外部（C&Cサーバ）との通信や、情報の持ち出しを止める対策。PCからの直接の通信の禁止、プロキシ認証、URLフィルタリングなど。',
+  },
+  {
+    id: 'privileged-id',
+    name: '特権IDの管理',
+    aliases: ['特権ID'],
+    description: '管理者などの強い権限を持つID（特権ID）を、ふだんは使えないようにし、申請と承認のうえで一時的に使わせて、操作を記録する管理。',
+  },
+  {
+    id: 'ids-ips',
+    name: 'IDS・IPS',
+    aliases: ['IDS', 'IPS'],
+    description:
+      'ネットワークの通信を監視して、攻撃や不正な通信のパターンを検知する仕組み。IDS（侵入検知システム）は検知して通知し、IPS（侵入防止システム）は通信の遮断まで行う。',
+  },
+  {
+    id: 'sandbox',
+    name: 'サンドボックス',
+    aliases: ['サンドボックス'],
+    description: 'メールの添付ファイルなどを、隔離した環境で実際に動かして、不審なふるまいがないかを調べる仕組み。',
+  },
+  {
+    id: 'ioc',
+    name: 'IoC（侵害の痕跡）',
+    aliases: ['IoC'],
+    description: '攻撃を受けた痕跡を示す情報。通信先のドメインやIPアドレス、マルウェアのファイルのハッシュ値など。ほかの端末や組織での感染の確認に使う。',
+  },
+  {
+    id: 'isac',
+    name: 'ISAC',
+    aliases: ['ISAC'],
+    description: '同じ業界の組織どうしが、サイバー攻撃の情報や対策を共有する組織（金融ISAC、ICT-ISACなど）。',
   },
 
   // DDoS

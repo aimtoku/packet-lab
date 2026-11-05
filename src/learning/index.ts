@@ -1,8 +1,11 @@
+import { apt } from './apt'
 import { arp } from './arp'
 import { ddos } from './ddos'
 import { dns } from './dns'
 import { mail } from './mail'
 import { sig } from './sig'
+import { sqli } from './sqli'
+import { sso } from './sso'
 import { tls } from './tls'
 import type { Learning } from './types'
 import { vpn } from './vpn'
@@ -10,7 +13,7 @@ import { web } from './web'
 import { xss } from './xss'
 
 /** シナリオごとの、学習の手引きと確認問題（キーはシナリオのID） */
-export const LEARNING: Readonly<Record<string, Learning>> = { sig, dns, tls, mail, web, xss, arp, ddos, vpn }
+export const LEARNING: Readonly<Record<string, Learning>> = { sig, dns, tls, mail, web, xss, sqli, sso, arp, apt, ddos, vpn }
 
 /** 選択肢の記号（試験と同じ ア・イ・ウ・エ） */
 export const CHOICE_MARKS = ['ア', 'イ', 'ウ', 'エ'] as const
