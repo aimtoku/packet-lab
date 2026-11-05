@@ -3065,3 +3065,55 @@ a.chip {
     transition: none;
   }
 }
+
+/* ひとことで：専門用語を使わない一文の説明 */
+.plain {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--point-bg);
+}
+
+.plain-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+}
+
+.plain-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+
+.plain p {
+  margin: 4px 0 0;
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.level {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.level button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.74rem;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+
+.level button[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}

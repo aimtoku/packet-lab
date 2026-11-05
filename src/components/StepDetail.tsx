@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { plainText } from '../plain'
 import { PHASE_LABEL, PHASES, type Mode, type Scenario, type StepKind } from '../types'
 import type { SubStep } from '../playback/substeps'
 import { PacketLayers } from './PacketLayers'
@@ -55,6 +57,18 @@ function PhaseStrip({ steps, index }: { steps: Scenario['steps'][Mode]; index: n
   )
 }
 
+/** 説明の詳しさ：やさしく（ひとことの説明だけ）／くわしく（機器ごとの説明も） */
+type Level = 'easy' | 'full'
+const LEVEL_KEY = 'packet-lab:level'
+
+function loadLevel(): Level {
+  try {
+    return window.localStorage.getItem(LEVEL_KEY) === 'easy' ? 'easy' : 'full'
+  } catch {
+    return 'full'
+  }
+}
+
 /** 「FW：〜」のような説明文を、機器の名前と内容に分ける */
 function splitWho(text: string): [string | null, string] {
   const at = text.indexOf('：')
@@ -64,7 +78,17 @@ function splitWho(text: string): [string | null, string] {
 export function StepDetail({ scenario, mode, index, subs, sub, onSub, onPrev, onNext, activeTerm, onTerm }: Props) {
   const steps = scenario.steps[mode]
   const step = steps[index]
+  const [level, setLevel] = useState<Level>(loadLevel)
   if (!step) return null
+  const plain = plainText(scenario.id, mode, index)
+  const changeLevel = (next: Level) => {
+    setLevel(next)
+    try {
+      window.localStorage.setItem(LEVEL_KEY, next)
+    } catch {
+      // 保存できない環境では、このページを開いている間だけ覚える
+    }
+  }
 
   const actorName = (id: string) => scenario.actors.find((a) => a.id === id)?.name ?? id
   const isLast = index === steps.length - 1
@@ -84,6 +108,24 @@ export function StepDetail({ scenario, mode, index, subs, sub, onSub, onPrev, on
         {mode === 'incident' && step.phase && <PhaseStrip steps={steps} index={index} />}
       </header>
       <div className="detail-body">
+        {plain && (
+          <div className="plain">
+            <div className="plain-head">
+              <span className="plain-label">ひとことで</span>
+              <div className="level" role="group" aria-label="説明の詳しさ">
+                <button type="button" aria-pressed={level === 'easy'} onClick={() => changeLevel('easy')}>
+                  やさしく
+                </button>
+                <button type="button" aria-pressed={level === 'full'} onClick={() => changeLevel('full')}>
+                  くわしく
+                </button>
+              </div>
+            </div>
+            <p>{plain}</p>
+          </div>
+        )}
+        {(level === 'full' || !plain) && (
+        <>
         <section aria-labelledby="timeline-title">
           <h3 id="timeline-title" className="sub-title">
             このステップで起きていること
@@ -118,6 +160,8 @@ export function StepDetail({ scenario, mode, index, subs, sub, onSub, onPrev, on
             <span className="point-label">支援士ポイント</span>
             <p>{text(step.point)}</p>
           </div>
+        )}
+        </>
         )}
       </div>
       <footer className="detail-nav">
