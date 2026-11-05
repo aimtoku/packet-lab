@@ -61,10 +61,10 @@ export function Summary({ scenario, learning, activeTerm, onTerm }: Props) {
           <table className="compare">
             <thead>
               <tr>
-                <th scope="col">対策</th>
-                <th scope="col">防げること</th>
-                <th scope="col">防げないこと・注意</th>
-                <th scope="col">どこで行うか</th>
+                <th scope="col">{scenario.basic ? '仕組み' : '対策'}</th>
+                <th scope="col">{scenario.basic ? 'できること' : '防げること'}</th>
+                <th scope="col">{scenario.basic ? 'できないこと・注意' : '防げないこと・注意'}</th>
+                <th scope="col">{scenario.basic ? 'どこで働くか' : 'どこで行うか'}</th>
               </tr>
             </thead>
             <tbody>
@@ -98,18 +98,22 @@ export function Summary({ scenario, learning, activeTerm, onTerm }: Props) {
       </section>
 
       <section className="study-card" aria-labelledby="study-points-title">
-        <h2 id="study-points-title">午後で押さえる論点</h2>
+        <h2 id="study-points-title">{scenario.basic ? '押さえておきたいこと' : '午後で押さえる論点'}</h2>
         <ul className="plain-list">
           {scenario.points.map((p, i) => (
             <li key={i}>{text(p)}</li>
           ))}
         </ul>
-        <h3 className="study-sub">インシデント対応で押さえる論点</h3>
-        <ul className="plain-list">
-          {scenario.incidentPoints.map((p, i) => (
-            <li key={i}>{text(p)}</li>
-          ))}
-        </ul>
+        {scenario.incidentPoints.length > 0 && (
+          <>
+            <h3 className="study-sub">インシデント対応で押さえる論点</h3>
+            <ul className="plain-list">
+              {scenario.incidentPoints.map((p, i) => (
+                <li key={i}>{text(p)}</li>
+              ))}
+            </ul>
+          </>
+        )}
       </section>
 
       {topics.length > 0 && (

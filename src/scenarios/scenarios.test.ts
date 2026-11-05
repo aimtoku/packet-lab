@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PHASES, type Mode } from '../types'
+import { modesOf, PHASES, type Mode } from '../types'
 import { sequenceActors } from '../components/Sequence'
 import { changeSubIndex } from '../playback/state'
 import { stopIndex, subStepsFor } from '../playback/substeps'
@@ -19,11 +19,15 @@ describe('シナリオのデータ', () => {
     describe(scenario.name, () => {
       const nodes = nodesFor(scenario)
 
-      it('どのモードにもステップがある', () => {
-        for (const mode of MODES) expect(scenario.steps[mode].length).toBeGreaterThan(0)
+      it('表示するモードにはステップがあり、表示しないモードにはない', () => {
+        for (const mode of MODES) {
+          if (modesOf(scenario).includes(mode)) expect(scenario.steps[mode].length, mode).toBeGreaterThan(0)
+          else expect(scenario.steps[mode].length, mode).toBe(0)
+        }
       })
 
-      it('攻撃者が1人以上いる', () => {
+      it('攻撃者が1人以上いる（基礎編を除く）', () => {
+        if (scenario.basic) return
         expect(scenario.actors.some((a) => a.attacker)).toBe(true)
       })
 
@@ -153,7 +157,8 @@ describe('シナリオのデータ', () => {
         }
       })
 
-      it('事後対応は、CSIRTが検知から再発防止まで、段階の順に対応する', () => {
+      it('事後対応は、CSIRTが検知から再発防止まで、段階の順に対応する（基礎編を除く）', () => {
+        if (scenario.basic) return
         const steps = scenario.steps.incident
         expect(steps.some((s) => s.from === 'csirt' || s.to === 'csirt')).toBe(true)
         for (const step of steps) {
