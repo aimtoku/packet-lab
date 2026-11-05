@@ -3128,3 +3128,550 @@ a.chip {
 ol.cards {
   list-style: none;
 }
+
+/* ===== ヘッダのナビゲーション ===== */
+.site-nav {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
+.site-nav a {
+  padding: 6px 12px;
+  border-radius: 8px;
+  color: var(--fg);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.site-nav a:hover {
+  background: var(--soft);
+}
+
+.site-nav a[aria-current='page'] {
+  color: var(--accent);
+  background: var(--point-bg);
+}
+
+/* ===== 教科書 ===== */
+.book-parts {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 32px;
+  display: grid;
+  gap: 16px;
+}
+
+.book-parts h2 {
+  margin: 0 0 4px;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.part-no,
+.chapter-no,
+.section-no {
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+
+.book-chapters {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+@media (min-width: 760px) {
+  .book-chapters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.book-chapters a {
+  display: grid;
+  gap: 2px;
+  height: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.book-chapters a:hover {
+  border-color: var(--accent);
+}
+
+.chapter-title {
+  font-weight: 700;
+}
+
+.chapter-lead {
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.chapter-sections {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.book-section h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.book-see {
+  margin: 12px 0 0;
+  font-size: 0.88rem;
+}
+
+.book-see a {
+  display: inline-flex;
+  gap: 2px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--point-bg);
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.book-see a:hover {
+  text-decoration: underline;
+}
+
+.book-pager {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.book-pager a {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--fg);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.book-pager a:hover {
+  border-color: var(--accent);
+}
+
+.pager-next {
+  margin-left: auto;
+  text-align: right;
+}
+
+.pager-dir {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.scenario-book-link {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 0 14px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.scenario-book-link:hover {
+  border-color: var(--accent);
+}
+
+@media (max-width: 520px) {
+  .scenario-book-link {
+    padding: 0 10px;
+    font-size: 0.82rem;
+  }
+
+  .scenario-book-link .long {
+    display: none;
+  }
+
+  .views button {
+    white-space: nowrap;
+    padding-inline: 8px;
+  }
+
+  .glossary-open {
+    padding: 0 10px;
+  }
+}
+
+/* トップページの教科書の入口 */
+.book-entry-body {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.book-entry-body p {
+  margin: 0;
+}
+
+.book-entry-parts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+}
+
+.book-entry-parts a {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--soft);
+  color: var(--fg);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.book-entry-parts a:hover {
+  background: var(--point-bg);
+}
+
+.book-entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.button-primary {
+  display: inline-block;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.button-primary:hover {
+  filter: brightness(1.08);
+}
+
+/* ===== 教科書の図 ===== */
+.book-fig {
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--zone);
+}
+
+.fig-scroll {
+  overflow-x: auto;
+}
+
+.fig-svg {
+  display: block;
+  margin-inline: auto;
+  height: auto;
+  font-family: var(--sans);
+}
+
+.fig-svg {
+  max-width: 100%;
+}
+
+@media (max-width: 640px) {
+  /* スマホでは文字が小さくなりすぎないよう、幅を保って横にスクロールする */
+  .fig-svg {
+    min-width: 520px;
+  }
+}
+
+.book-fig figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.fig-no {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.fig-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+}
+
+.fig-legend-mark {
+  width: 14px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--term-bg);
+  border: 1.5px solid var(--term-line);
+}
+
+.fig-name {
+  font-size: 10px;
+  font-weight: 700;
+  fill: var(--fg);
+  paint-order: stroke;
+  stroke: var(--zone);
+  stroke-width: 3px;
+}
+
+.fig-name.atk {
+  fill: var(--atk);
+}
+
+.fig-sub {
+  font-size: 8.5px;
+  font-family: var(--mono);
+  fill: var(--muted);
+  paint-order: stroke;
+  stroke: var(--zone);
+  stroke-width: 3px;
+}
+
+.fig-add-ring {
+  fill: var(--term-bg);
+  stroke: var(--term-line);
+  stroke-width: 1.5;
+}
+
+.fig-life {
+  stroke: var(--line);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 3;
+}
+
+.fig-num {
+  font-size: 9px;
+  font-family: var(--mono);
+  fill: var(--muted);
+}
+
+.fig-label-bg {
+  fill: var(--zone);
+}
+
+.fig-label text {
+  fill: var(--fg);
+}
+
+.fig-label.add .fig-label-bg {
+  fill: var(--term-bg);
+  stroke: var(--term-line);
+  stroke-width: 1;
+}
+
+.fig-msg .fig-arrow,
+.fig-link line {
+  stroke-width: 1.6;
+  fill: none;
+}
+
+.t-normal .fig-arrow,
+.fig-link.t-normal line {
+  stroke: var(--accent);
+}
+
+.t-attack .fig-arrow,
+.fig-link.t-attack line {
+  stroke: var(--atk);
+}
+
+.t-defense .fig-arrow,
+.fig-link.t-defense line {
+  stroke: var(--ok);
+}
+
+.t-blocked .fig-arrow,
+.fig-link.t-blocked line {
+  stroke: var(--atk);
+  stroke-dasharray: 5 3;
+}
+
+.t-muted .fig-arrow,
+.fig-link.t-muted line {
+  stroke: var(--cable);
+}
+
+.fig-link.dashed line {
+  stroke-dasharray: 4 3;
+}
+
+.fig-msg.add .fig-arrow,
+.fig-link.add line {
+  stroke-width: 2.4;
+}
+
+.fig-head.t-normal {
+  fill: var(--accent);
+}
+
+.fig-head.t-attack,
+.fig-head.t-blocked {
+  fill: var(--atk);
+}
+
+.fig-head.t-defense {
+  fill: var(--ok);
+}
+
+.fig-head.t-muted {
+  fill: var(--cable);
+}
+
+.fig-cross {
+  stroke: var(--atk);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.fig-proc {
+  fill: var(--panel);
+  stroke: var(--line);
+}
+
+.fig-msg.t-attack .fig-proc {
+  fill: var(--atk-bg);
+  stroke: var(--atk);
+}
+
+.fig-msg.t-defense .fig-proc {
+  fill: var(--ok-bg);
+  stroke: var(--ok);
+}
+
+.fig-msg.add .fig-proc {
+  fill: var(--term-bg);
+  stroke: var(--term-line);
+}
+
+.fig-proc-text {
+  fill: var(--fg);
+}
+
+.fig-zone rect {
+  fill: var(--panel);
+  stroke: var(--line);
+  stroke-dasharray: 4 3;
+}
+
+.fig-zone.add rect {
+  stroke: var(--term-line);
+  stroke-width: 1.5;
+}
+
+.fig-zone text {
+  font-size: 9.5px;
+  font-family: var(--mono);
+  fill: var(--muted);
+}
+
+.fig-row-caption {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--muted);
+}
+
+.fig-cell {
+  --ly: var(--ly-l7);
+}
+
+.fig-cell.ly-l2 {
+  --ly: var(--ly-l2);
+}
+
+.fig-cell.ly-l3 {
+  --ly: var(--ly-l3);
+}
+
+.fig-cell.ly-l4 {
+  --ly: var(--ly-l4);
+}
+
+.fig-cell.ly-sec {
+  --ly: var(--ly-sec);
+}
+
+.fig-cell.ly-tunnel {
+  --ly: var(--ly-tunnel);
+}
+
+.fig-cell-box {
+  fill: var(--panel);
+  stroke: var(--ly);
+  stroke-width: 1.5;
+}
+
+.fig-cell.add .fig-cell-box {
+  fill: var(--term-bg);
+  stroke: var(--term-line);
+  stroke-width: 2;
+}
+
+.fig-hatch {
+  stroke: var(--ly-sec);
+  stroke-width: 1.4;
+  opacity: 0.35;
+}
+
+.fig-cell-label {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--ly);
+}
+
+.fig-cell.add .fig-cell-label {
+  fill: var(--fg);
+}
+
+.fig-cell-sub {
+  font-size: 9px;
+  font-family: var(--mono);
+  fill: var(--muted);
+}

@@ -1,4 +1,6 @@
 import { useEffect } from 'react'
+import { findChapter } from './book'
+import { BookIndex, BookView } from './components/BookView'
 import { Home } from './components/Home'
 import { ScenarioView } from './components/ScenarioView'
 import { TopicView } from './components/TopicView'
@@ -14,15 +16,14 @@ export function App() {
   const id = pathname.replace(/^\/+|\/+$/g, '')
   const topicId = id.match(/^topics\/([a-z0-9-]+)$/)?.[1]
   const topic = topicId ? findTopic(topicId) : undefined
-  const scenario = id && !topicId ? findScenario(id) : undefined
-  const notFound = id !== '' && !scenario && !topic
+  const chapterId = id.match(/^book\/([a-z0-9-]+)$/)?.[1]
+  const chapter = chapterId ? findChapter(chapterId) : undefined
+  const isBookIndex = id === 'book'
+  const scenario = id && !topicId && !chapterId && !isBookIndex ? findScenario(id) : undefined
+  const notFound = id !== '' && !scenario && !topic && !chapter && !isBookIndex
 
   useEffect(() => {
-    document.title = scenario
-      ? `${scenario.name}：${scenario.threat} | ${SITE_NAME}`
-      : topic
-        ? `${topic.name}（解説） | ${SITE_NAME}`
-        : SITE_NAME
+    document.title = scenario ? `${scenario.name}：${scenario.threat} | ${SITE_NAME}` : topic ? `${topic.name}（解説） | ${SITE_NAME}` : SITE_NAME
   }, [scenario, topic])
 
   return (
@@ -38,6 +39,11 @@ export function App() {
             </svg>
             {SITE_NAME}
           </Link>
+          <nav className="site-nav" aria-label="サイト内">
+            <Link to="/book" aria-current={id.startsWith('book') ? 'page' : undefined}>
+              教科書
+            </Link>
+          </nav>
         </div>
       </header>
 
@@ -46,6 +52,10 @@ export function App() {
           <ScenarioView key={scenario.id} scenario={scenario} />
         ) : topic ? (
           <TopicView key={topic.id} topic={topic} />
+        ) : chapter ? (
+          <BookView key={chapter.id} chapter={chapter} />
+        ) : isBookIndex ? (
+          <BookIndex />
         ) : notFound ? (
           <div className="not-found">
             <h1>ページが見つかりません</h1>
@@ -60,7 +70,8 @@ export function App() {
       <footer className="site-footer">
         <div className="wrap footer-inner">
           <p>
-            図中のIPアドレス、MACアドレス、ドメインは、説明用やプライベート用に予約されたもの（RFC 5737、RFC 1918、RFC 7042、RFC 2606）で、実在のサーバを指しません。攻撃の解説は、仕組みと対策を理解するためのものです。
+            図中のIPアドレス、MACアドレス、ドメインは、説明用やプライベート用に予約されたもの（RFC 5737、RFC 1918、RFC 7042、RFC
+            2606）で、実在のサーバを指しません。攻撃の解説は、仕組みと対策を理解するためのものです。
           </p>
           <ul className="footer-links">
             <li>

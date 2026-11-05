@@ -1,3 +1,4 @@
+import { bookPath, CHAPTERS, PARTS } from '../book'
 import { TERMS } from '../glossary/terms'
 import { Link } from '../router'
 import { scenarios } from '../scenarios'
@@ -46,6 +47,36 @@ export function Home() {
         <p className="howto-note">
           リスクマネジメント、CSIRTの体制、脆弱性管理、法令、監査など、通信の図にしにくい分野は「解説」のページにまとめています。
         </p>
+      </section>
+
+      <section aria-labelledby="book-title" className="book-entry">
+        <h2 id="book-title" className="section-title">
+          教科書<span className="section-note">本文と図を、節ごとに積み重ねて読む</span>
+        </h2>
+        <div className="book-entry-body">
+          <p>
+            全{CHAPTERS.length}章を{PARTS.length}部に分け、短い本文と図で順に読み進めます。各章の最後から、その章の図解・まとめ・確認問題へ進めます。
+          </p>
+          <ol className="book-entry-parts">
+            {PARTS.map((part, i) => {
+              const first = CHAPTERS.find((c) => c.part === part.id)
+              return (
+                <li key={part.id}>
+                  <Link to={first ? bookPath(first.id) : bookPath()}>
+                    <span className="part-no">第{i + 1}部</span>
+                    <span>{part.title}</span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ol>
+          <p className="book-entry-actions">
+            <Link to={bookPath(CHAPTERS[0]!.id)} className="button-primary">
+              第1章から読む
+            </Link>
+            <Link to={bookPath()}>目次を見る</Link>
+          </p>
+        </div>
       </section>
 
       <section aria-labelledby="basics-title">
