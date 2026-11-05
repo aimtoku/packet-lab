@@ -10,5 +10,8 @@
   },
   "workers_dev": true,
   // PRごとの確認用URLを有効にする
-  "preview_urls": true
+  "preview_urls": true,
+  // PRのブランチを wrangler preview で確認用に公開するための設定（中身は空でよい。
+  // 静的ファイルの設定は上の assets がそのまま使われる）
+  "previews": {}
 }

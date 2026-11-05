@@ -10,7 +10,7 @@ export interface NodeSpec {
 }
 
 export const VIEW_WIDTH = 360
-export const VIEW_HEIGHT = 318
+export const VIEW_HEIGHT = 334
 export const VIEW_HEIGHT_MOBILE = 362
 
 /** 企業ネットワークの標準構成。シナリオごとに、使う機器だけを表示する */
@@ -23,6 +23,7 @@ export const BASE_NODES: Record<NodeId, NodeSpec> = {
   sw: { x: 90, y: 218, type: 'switch', name: 'L2SW', sub: '' },
   pc: { x: 40, y: 282, type: 'pc', name: 'PC', sub: '' },
   cache: { x: 140, y: 282, type: 'server', name: 'キャッシュDNS', sub: '社内' },
+  lan2: { x: 90, y: 300, type: 'pc', name: '', sub: '' },
   inet: { x: 266, y: 174, type: 'cloud', name: 'インターネット', sub: '' },
   ext1: { x: 226, y: 80, type: 'server', name: '', sub: '' },
   ext2: { x: 312, y: 80, type: 'server', name: '', sub: '' },
@@ -40,6 +41,7 @@ export const EDGES: readonly (readonly [NodeId, NodeId])[] = [
   ['fw', 'sw'],
   ['sw', 'pc'],
   ['sw', 'cache'],
+  ['sw', 'lan2'],
   ['fw', 'inet'],
   ['inet', 'ext1'],
   ['inet', 'ext2'],
@@ -60,7 +62,7 @@ export interface Zone {
 
 export const ZONES: readonly Zone[] = [
   { id: 'dmz', x: 8, y: 8, w: 166, h: 126, label: 'DMZ（example.co.jp）' },
-  { id: 'lan', x: 8, y: 194, w: 166, h: 118, label: '社内LAN' },
+  { id: 'lan', x: 8, y: 194, w: 166, h: 132, label: '社内LAN' },
   { id: 'ext', x: 186, y: 8, w: 166, h: 110, label: '外部' },
   { id: 'mobile', x: 186, y: 262, w: 166, h: 96, label: '外出先（公衆Wi-Fi）' },
 ]

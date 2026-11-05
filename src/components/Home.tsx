@@ -1,3 +1,4 @@
+import { TERMS } from '../glossary/terms'
 import { Link } from '../router'
 import { scenarios } from '../scenarios'
 
@@ -28,6 +29,9 @@ export function Home() {
             <strong>対策</strong>：どの機器のどの仕組みで、攻撃が止まるか
           </li>
         </ol>
+        <p className="howto-note">
+          シナリオの画面では、用語一覧（{TERMS.length}語）の用語を押すと、その用語が出てくるステップに図と説明が移動します。
+        </p>
       </section>
 
       <section aria-labelledby="list-title">

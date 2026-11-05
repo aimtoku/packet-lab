@@ -220,7 +220,7 @@ export const mail = defineScenario({
       dns: 'adns',
     },
     shields: ['ext1', 'adns'],
-    external: {
+    devices: {
       ext1: {
         type: 'server',
         name: '受信MTA',

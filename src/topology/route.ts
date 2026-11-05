@@ -1,18 +1,22 @@
-import type { NodeId, Scenario } from '../types'
+import type { NodeId, OptionalNodeId, Scenario } from '../types'
 import { BASE_NODES, EDGES, type NodeSpec } from './layout'
 
 export type NodeMap = Partial<Record<NodeId, NodeSpec>>
 
+const isOptionalNode = (id: NodeId): id is OptionalNodeId => id === 'ext1' || id === 'ext2' || id === 'lan2'
+
 /** シナリオで表示する機器を、名前の書き換えも含めて組み立てる */
 export function nodesFor(scenario: Scenario): NodeMap {
-  const { external, labels, mobile } = scenario.topology
+  const { devices, labels, mobile, hidden } = scenario.topology
   const nodes: NodeMap = {}
   for (const id of Object.keys(BASE_NODES) as NodeId[]) {
-    if ((id === 'ext1' || id === 'ext2') && !external?.[id]) continue
+    if (hidden?.includes(id)) continue
+    const optional = isOptionalNode(id)
+    if (optional && !devices?.[id]) continue
     if ((id === 'laptop' || id === 'ap' || id === 'fakeap') && !mobile) continue
     const node: NodeSpec = { ...BASE_NODES[id] }
-    const ext = id === 'ext1' || id === 'ext2' ? external?.[id] : undefined
-    if (ext) Object.assign(node, ext)
+    const device = optional ? devices?.[id] : undefined
+    if (device) Object.assign(node, device)
     const label = labels?.[id]
     if (label) [node.name, node.sub] = label
     nodes[id] = node

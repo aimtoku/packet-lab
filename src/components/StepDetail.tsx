@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { Mode, Scenario, StepKind } from '../types'
 import { nodesFor, stepRoute } from '../topology/route'
+import { TermText } from './TermText'
 
 export const KIND_LABEL: Record<StepKind, string> = {
   normal: '正常',
@@ -22,9 +23,11 @@ interface Props {
   index: number
   onPrev: () => void
   onNext: () => void
+  activeTerm: string | null
+  onTerm: (termId: string) => void
 }
 
-export function StepDetail({ scenario, mode, index, onPrev, onNext }: Props) {
+export function StepDetail({ scenario, mode, index, onPrev, onNext, activeTerm, onTerm }: Props) {
   const steps = scenario.steps[mode]
   const step = steps[index]
   const nodes = useMemo(() => nodesFor(scenario), [scenario])
@@ -66,18 +69,26 @@ export function StepDetail({ scenario, mode, index, onPrev, onNext }: Props) {
             <tbody>
               {step.fields.map(([key, value], i) => (
                 <tr key={i}>
-                  <th scope="row">{key}</th>
-                  <td>{value}</td>
+                  <th scope="row">
+                    <TermText text={key} activeTerm={activeTerm} onTerm={onTerm} />
+                  </th>
+                  <td>
+                    <TermText text={value} activeTerm={activeTerm} onTerm={onTerm} />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="note">{step.note}</p>
+        <p className="note">
+          <TermText text={step.note} activeTerm={activeTerm} onTerm={onTerm} />
+        </p>
         {step.point && (
           <div className="point">
             <span className="point-label">支援士ポイント</span>
-            <p>{step.point}</p>
+            <p>
+              <TermText text={step.point} activeTerm={activeTerm} onTerm={onTerm} />
+            </p>
           </div>
         )}
       </div>

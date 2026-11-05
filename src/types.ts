@@ -27,9 +27,13 @@ export type NodeId =
   | 'inet'
   | 'ext1'
   | 'ext2'
+  | 'lan2'
   | 'laptop'
   | 'ap'
   | 'fakeap'
+
+/** シナリオで使うときだけ表示する機器 */
+export type OptionalNodeId = 'ext1' | 'ext2' | 'lan2'
 
 export interface Actor<A extends string> {
   id: A
@@ -57,10 +61,12 @@ export interface ScenarioTopology<A extends string> {
   map: Record<A, NodeId>
   /** 外出先（公衆Wi-Fi）のエリアを表示するか */
   mobile?: boolean
-  /** インターネット側の機器（ext1, ext2）の種類と名前 */
-  external?: Partial<Record<'ext1' | 'ext2', { type: DeviceType; name: string; sub: string }>>
+  /** シナリオごとに置く機器（インターネット側の ext1・ext2、社内LANの lan2）の種類と名前 */
+  devices?: Partial<Record<OptionalNodeId, { type: DeviceType; name: string; sub: string }>>
   /** 既定の機器名を、このシナリオ用に書き換える */
   labels?: Partial<Record<NodeId, readonly [string, string]>>
+  /** このシナリオでは表示しない機器 */
+  hidden?: readonly NodeId[]
   /** 対策モードで、対策を実施する機器 */
   shields: readonly NodeId[]
 }
