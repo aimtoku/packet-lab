@@ -270,7 +270,8 @@ export const TERMS: readonly Term[] = [
     id: 'evil-twin',
     name: '偽アクセスポイント',
     aliases: ['偽アクセスポイント', '偽AP'],
-    description: '正規の公衆Wi-Fiと同じ名前（SSID）を名乗って、攻撃者が設置する無線LANのアクセスポイント。接続した端末の通信を、攻撃者が中継できる。Evil Twinとも呼ぶ。',
+    description:
+      '正規の無線LAN（公衆Wi-Fiや社内の無線LAN）と同じ名前（SSID）を名乗って、攻撃者が設置するアクセスポイント。接続した端末の通信を中継したり、認証情報を盗んだりする。Evil Twinとも呼ぶ。',
   },
   {
     id: 'hsts',
@@ -1281,5 +1282,126 @@ export const TERMS: readonly Term[] = [
     name: 'SLA',
     aliases: ['SLA'],
     description: 'Service Level Agreement。サービスの品質（稼働率、障害の連絡の時間など）について、事業者と利用者が合意したもの。',
+  },
+
+  // 無線LAN
+  {
+    id: 'radius',
+    name: 'RADIUS',
+    aliases: ['RADIUS'],
+    description: '利用者や端末の認証を一か所で行うためのプロトコルと、そのサーバ。IEEE 802.1Xでは認証サーバの役割を担い、APやスイッチから認証を任される（UDP/1812）。',
+  },
+  {
+    id: 'peap',
+    name: 'PEAP',
+    aliases: ['PEAP'],
+    description: 'サーバ証明書でTLSのトンネルを作り、その中でIDとパスワード（MSCHAPv2など）を確かめるEAPの方式。端末がサーバ証明書を検証しないと、偽APに認証情報を盗まれる。',
+  },
+  {
+    id: 'eap-tls',
+    name: 'EAP-TLS',
+    aliases: ['EAP-TLS'],
+    description: 'サーバとクライアントの両方が証明書で認証するEAPの方式。パスワードを使わないので、盗まれる認証情報がない。',
+  },
+  {
+    id: 'wpa',
+    name: 'WPA2・WPA3',
+    aliases: ['WPA3-Enterprise', 'WPA3-Personal', 'WPA2-Enterprise', 'WPA2-Personal', 'WPA3', 'WPA2'],
+    description:
+      '無線LANのセキュリティの規格。Personalは共通のパスフレーズ、EnterpriseはIEEE 802.1Xで利用者ごとに認証する。WPA3では、PMFが必須になり、PersonalはSAEでオフラインの辞書攻撃に強くなった。',
+  },
+  {
+    id: 'sae',
+    name: 'SAE',
+    aliases: ['SAE'],
+    description: 'WPA3-Personalの鍵の交換の方式。やり取りを傍受されても、パスフレーズをオフラインの辞書攻撃で割り出しにくい。',
+  },
+  {
+    id: 'pmf',
+    name: 'PMF（管理フレームの保護）',
+    aliases: ['PMF', 'IEEE 802.11w'],
+    description: '無線LANの切断などの管理フレームに改ざん検知の値を付けて、偽の切断フレームを受け付けないようにする仕組み（IEEE 802.11w）。WPA3では必須。',
+  },
+  {
+    id: 'four-way-handshake',
+    name: '4ウェイハンドシェイク',
+    aliases: ['4ウェイハンドシェイク'],
+    description: 'APと端末が、PMKと乱数から、その接続だけで使う暗号化の鍵（PTK）を作るための4回のやり取り。',
+  },
+  {
+    id: 'ssid',
+    name: 'SSID',
+    aliases: ['SSID'],
+    description: '無線LANのネットワークの名前。だれでも同じ名前を名乗れるので、SSIDだけでは本物のAPかどうかを確かめられない。',
+  },
+  {
+    id: 'ccmp',
+    name: 'CCMP',
+    aliases: ['CCMP'],
+    description: 'WPA2・WPA3で使う、AESによる無線の区間の暗号化と改ざん検知の方式。',
+  },
+  {
+    id: 'wips',
+    name: 'WIPS',
+    aliases: ['WIPS'],
+    description: '無線の侵入防止システム。APやセンサーで周りの電波を監視し、登録外のAP（偽AP）や不審な切断フレームを検知して、通知や遮断を行う。',
+  },
+  {
+    id: 'mdm',
+    name: 'MDM',
+    aliases: ['MDM'],
+    description: 'Mobile Device Management。会社の端末の設定（無線LANの設定、証明書など）を一括で配布・管理する仕組み。',
+  },
+  {
+    id: 'dynamic-vlan',
+    name: '動的VLAN',
+    aliases: ['動的VLAN'],
+    description: '認証の結果に応じて、端末をつなぐVLANを切り替える仕組み。利用者や端末の種類ごとに、アクセスできる範囲を分けられる。',
+  },
+  {
+    id: 'asset-inventory',
+    name: '資産の一覧（資産台帳）',
+    aliases: ['資産の一覧', '資産台帳'],
+    description: '組織が持つ機器やソフトウェア（製品名と版を含む）の一覧。脆弱性や改ざんが公表されたとき、影響を受ける端末をすぐに特定するために使う。',
+  },
+
+  // クラウドストレージ
+  {
+    id: 'public-access-block',
+    name: 'パブリックアクセスのブロック',
+    aliases: ['パブリックアクセスのブロック'],
+    description: 'クラウドのストレージを、だれでも読める設定（公開）にすることを、組織やアカウントの単位で禁止する設定。',
+  },
+  {
+    id: 'presigned-url',
+    name: '期限付きURL（署名付きURL）',
+    aliases: ['期限付きURL', '期限付きのURL'],
+    description: '特定のファイルだけを、決めた期限まで読めるようにするURL。ストレージを公開せずに、必要な相手とだけ共有できる。',
+  },
+  {
+    id: 'audit-log',
+    name: '監査ログ（操作ログ）',
+    aliases: ['監査ログ'],
+    description: 'だれが、いつ、どの操作（設定の変更、ログイン、データの出力など）をしたかの記録。インシデントの原因や影響を調べる証拠になる。',
+  },
+
+  // サプライチェーン
+  {
+    id: 'supply-chain-attack',
+    name: 'サプライチェーン攻撃',
+    aliases: ['サプライチェーン攻撃'],
+    description: '製品の提供元（ベンダー）や委託先など、取引でつながる組織を足がかりにして、それを利用する組織に侵入する攻撃。更新の改ざんや、委託先の保守回線の悪用などがある。',
+  },
+  {
+    id: 'code-signing',
+    name: 'コード署名',
+    aliases: ['コード署名'],
+    description: 'プログラムや更新のファイルに、作成者（ベンダー）の秘密鍵で付ける電子署名。利用者は公開鍵で検証し、作成者が作ったもので改ざんされていないことを確かめる。',
+  },
+  {
+    id: 'backdoor',
+    name: 'バックドア',
+    aliases: ['バックドア'],
+    description: '正規の認証を経ずに、攻撃者があとから入り込めるように仕込まれた裏口。',
   },
 ]

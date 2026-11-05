@@ -3,8 +3,8 @@ import { PHASES, type Mode } from '../types'
 import { sequenceActors } from '../components/Sequence'
 import { changeSubIndex } from '../playback/state'
 import { stopIndex, subStepsFor } from '../playback/substeps'
-import { BASE_NODES } from '../topology/layout'
-import { attackerNodes, findRoute, nodesFor, stepRoute } from '../topology/route'
+import { BASE_NODES, EDGES } from '../topology/layout'
+import { attackerNodes, edgesFor, findRoute, nodesFor, stepRoute } from '../topology/route'
 import { scenarios } from './index'
 
 const MODES: Mode[] = ['normal', 'attack', 'defense', 'incident']
@@ -40,6 +40,17 @@ describe('シナリオのデータ', () => {
         expect(new Set(placed).size).toBe(placed.length)
       })
 
+      it('つながりの追加と削除は、表示される機器と、標準の構成にあるケーブルに対して行う', () => {
+        const { add = [], remove = [] } = scenario.topology.links ?? {}
+        for (const [a, b] of add) {
+          expect(nodes[a], a).toBeDefined()
+          expect(nodes[b], b).toBeDefined()
+        }
+        for (const [a, b] of remove) {
+          expect(EDGES.some(([x, y]) => (x === a && y === b) || (x === b && y === a)), `${a}-${b}`).toBe(true)
+        }
+      })
+
       it('対策の盾は、表示される機器に付いている', () => {
         for (const id of scenario.topology.shields) expect(nodes[id], id).toBeDefined()
       })
@@ -51,7 +62,7 @@ describe('シナリオのデータ', () => {
             const from = scenario.topology.map[step.from]!
             const to = scenario.topology.map[step.to]!
             if (from === 'soc' || to === 'soc') return
-            expect(findRoute(nodes, from, to, avoid), `${mode} #${i + 1} ${step.label}`).not.toBeNull()
+            expect(findRoute(nodes, from, to, avoid, edgesFor(scenario)), `${mode} #${i + 1} ${step.label}`).not.toBeNull()
           })
         }
       })
@@ -60,7 +71,7 @@ describe('シナリオのデータ', () => {
         const avoid = attackerNodes(scenario)
         for (const mode of MODES) {
           for (const step of scenario.steps[mode]) {
-            const route = findRoute(nodes, scenario.topology.map[step.from]!, scenario.topology.map[step.to]!, avoid) ?? []
+            const route = findRoute(nodes, scenario.topology.map[step.from]!, scenario.topology.map[step.to]!, avoid, edgesFor(scenario)) ?? []
             const middle = route.slice(1, -1)
             expect(middle.filter((n) => avoid.includes(n)), step.label).toEqual([])
           }

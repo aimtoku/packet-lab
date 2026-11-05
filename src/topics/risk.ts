@@ -119,7 +119,7 @@ export const risk: Topic = {
     { cue: '「サイバー保険に加入した」', think: 'リスク移転（共有）。ただし、信用の低下や、対応する責任までは移せない' },
     { cue: '「その機能の提供をやめることにした」', think: 'リスク回避' },
   ],
-  related: ['sqli', 'apt', 'vpn'],
+  related: ['sqli', 'apt', 'supply'],
   quiz: {
     choices: [
       {

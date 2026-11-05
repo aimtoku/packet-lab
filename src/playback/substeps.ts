@@ -15,16 +15,19 @@ export interface SubStep {
 }
 
 /** 経由する機器の、既定の説明。スイッチは長くなるので、シナリオで書いたときだけ出す */
-function defaultVia(node: NodeSpec, prev: NodeSpec | undefined): string | null {
+function defaultVia(node: NodeSpec, prev: NodeSpec | undefined, next: NodeSpec | undefined): string | null {
   switch (node.type) {
     case 'fw':
       return `${node.name}：通信のルールと照らし合わせます。許可されている通信なので、通します。`
     case 'cloud':
       return 'インターネット：経路上のルータが、宛先IPアドレスを見て、次々に中継していきます。'
-    case 'ap':
+    case 'ap': {
+      // 公衆Wi-FiのAPはインターネットに、社内のAPは有線のLANにつながっている
+      const wired = (n: NodeSpec | undefined) => (n?.type === 'cloud' ? 'インターネット' : '有線のLAN')
       return prev?.type === 'laptop'
-        ? `${node.name}：無線LANで受け取った通信を、インターネットへ中継します。`
-        : `${node.name}：インターネットから届いた通信を、無線LANで端末へ届けます。`
+        ? `${node.name}：無線LANで受け取った通信を、${wired(next)}へ中継します。`
+        : `${node.name}：${wired(prev)}から届いた通信を、無線LANで端末へ届けます。`
+    }
     default:
       return null
   }
@@ -58,7 +61,7 @@ export function subStepsFor(scenario: Scenario, nodes: NodeMap, step: Step<strin
     const id = route[i]!
     const node = nodes[id]
     if (!node) continue
-    const text = step.via?.[id] ?? defaultVia(node, nodes[route[i - 1]!])
+    const text = step.via?.[id] ?? defaultVia(node, nodes[route[i - 1]!], nodes[route[i + 1]!])
     if (text) subs.push({ kind: 'via', node: id, routeIndex: i, text })
   }
   if (stop !== null) {

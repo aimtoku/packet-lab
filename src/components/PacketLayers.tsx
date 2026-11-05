@@ -29,9 +29,10 @@ function headersOf(step: Step<string>, fromName: string, toName: string): Header
   const w = step.wire
   if (!w) return []
   const list: Header[] = []
-  if (w.srcMac || w.dstMac) {
-    list.push({ layer: 'l2', tag: 'L2', lines: [{ name: 'Ethernet', addr: `${w.srcMac ?? '—'} → ${w.dstMac ?? '—'}` }] })
+  if (w.srcMac || w.dstMac || w.l2) {
+    list.push({ layer: 'l2', tag: 'L2', lines: [{ name: w.l2 ?? 'Ethernet', addr: `${w.srcMac ?? '—'} → ${w.dstMac ?? '—'}` }] })
   }
+  if (w.l2Secure) list.push({ layer: 'sec', tag: '暗号化', lines: [{ name: w.l2Secure, addr: 'ここから内側は暗号化（無線の区間）' }] })
   if (w.tunnel) {
     const t = w.tunnel
     const lines: HeaderLine[] = [
