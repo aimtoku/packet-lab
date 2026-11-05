@@ -1,4 +1,4 @@
-import type { DeviceType, NodeId } from '../types'
+import type { DeviceType, NodeId, ZoneId } from '../types'
 
 /** 構成図の機器。x, y は機器の床面の手前の角（等角投影） */
 export interface NodeSpec {
@@ -54,7 +54,7 @@ export const EDGES: readonly (readonly [NodeId, NodeId])[] = [
 ]
 
 export interface Zone {
-  id: 'dmz' | 'lan' | 'ext' | 'mobile'
+  id: ZoneId
   x: number
   y: number
   w: number

@@ -49,6 +49,9 @@ export type NodeId =
   | 'fakeap'
   | 'soc'
 
+/** 構成図の区域 */
+export type ZoneId = 'dmz' | 'lan' | 'ext' | 'mobile'
+
 /** シナリオで使うときだけ表示する機器（soc はCSIRTの席。ケーブルではつながない） */
 export type OptionalNodeId = 'ext1' | 'ext2' | 'lan2' | 'soc'
 
@@ -98,6 +101,10 @@ export interface Wire {
   /** MACアドレス。同じLANの中の話で、注目するときだけ書く */
   srcMac?: string
   dstMac?: string
+  /** L2の名前。省略すると Ethernet（無線LANのときは IEEE 802.11 など） */
+  l2?: string
+  /** L2で暗号化しているとき（無線LANの CCMP など）の名前。L2の内側をすべて暗号化する */
+  l2Secure?: string
   /** IPを使わないプロトコル（ARPなど） */
   noIp?: boolean
   /** 中身を暗号化している層の名前（TLS など） */
@@ -176,6 +183,13 @@ export interface ScenarioTopology<A extends string> {
   labels?: Partial<Record<NodeId, readonly [string, string]>>
   /** このシナリオでは表示しない機器 */
   hidden?: readonly NodeId[]
+  /** ケーブル（無線を含む）のつながりを、このシナリオ用に足したり外したりする */
+  links?: {
+    add?: readonly (readonly [NodeId, NodeId])[]
+    remove?: readonly (readonly [NodeId, NodeId])[]
+  }
+  /** 区域の名前を、このシナリオ用に書き換える（外出先の区域を、社内の無線LANとして使うときなど） */
+  zoneLabels?: Partial<Record<ZoneId, string>>
   /** 対策モードで、対策を実施する機器 */
   shields: readonly NodeId[]
 }

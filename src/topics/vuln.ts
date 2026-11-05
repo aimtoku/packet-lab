@@ -118,7 +118,7 @@ export const vuln: Topic = {
     { cue: '「修正プログラムを、すぐには適用できない」', think: '回避策（通信の制限、機能の無効化、WAF）で、適用までのリスクを下げる' },
     { cue: '「使っているライブラリに脆弱性が見つかったが、どの製品が影響を受けるか分からない」', think: 'SBOMで、部品とバージョンを管理しておく' },
   ],
-  related: ['vpn', 'sqli', 'xss'],
+  related: ['vpn', 'supply', 'sqli'],
   quiz: {
     choices: [
       {

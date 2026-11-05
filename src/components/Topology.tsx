@@ -4,7 +4,6 @@ import { usePacketTravel } from '../hooks/usePacketTravel'
 import { stopIndex, type SubStep } from '../playback/substeps'
 import {
   anchorOf,
-  EDGES,
   pathLength,
   pointAlong,
   TOP_HEIGHT,
@@ -14,7 +13,7 @@ import {
   VIEW_WIDTH,
   ZONES,
 } from '../topology/layout'
-import { attackerNodes, nodesFor, offstageNodes, stepRoute } from '../topology/route'
+import { attackerNodes, edgesFor, nodesFor, offstageNodes, stepRoute } from '../topology/route'
 import { deviceShapes } from './Device'
 
 interface Props {
@@ -49,6 +48,7 @@ function crossPosition(a: Point, b: Point, stop: Point): Point {
 
 export function Topology({ scenario, mode, index, subs, sub, travelMs, onArrive, arrived }: Props) {
   const nodes = useMemo(() => nodesFor(scenario), [scenario])
+  const edges = useMemo(() => edgesFor(scenario), [scenario])
   const attackers = useMemo(() => attackerNodes(scenario), [scenario])
   const steps = scenario.steps[mode]
   const routes = useMemo(() => steps.map((s) => stepRoute(scenario, nodes, s.from, s.to)), [scenario, nodes, steps])
@@ -100,11 +100,11 @@ export function Topology({ scenario, mode, index, subs, sub, travelMs, onArrive,
         <g key={z.id} className="zone">
           <rect x={z.x} y={z.y} width={z.w} height={z.h} rx={10} />
           <text x={z.x + 8} y={z.y + 13}>
-            {z.label}
+            {scenario.topology.zoneLabels?.[z.id] ?? z.label}
           </text>
         </g>
       ))}
-      {EDGES.filter(([a, b]) => nodes[a] && nodes[b]).map(([a, b]) => {
+      {edges.filter(([a, b]) => nodes[a] && nodes[b]).map(([a, b]) => {
         const [x1, y1] = anchorOf(nodes[a]!)
         const [x2, y2] = anchorOf(nodes[b]!)
         return <line key={`${a}-${b}`} x1={x1} y1={y1} x2={x2} y2={y2} className="cable" />

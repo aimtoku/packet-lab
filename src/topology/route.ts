@@ -34,15 +34,30 @@ export function attackerNodes(scenario: Scenario): NodeId[] {
   })
 }
 
+export type Edge = readonly [NodeId, NodeId]
+
+/** シナリオのケーブルのつながり（標準の構成に、シナリオでの追加と削除を当てはめる） */
+export function edgesFor(scenario: Scenario): readonly Edge[] {
+  const { add = [], remove = [] } = scenario.topology.links ?? {}
+  const same = (e: Edge, r: Edge) => (e[0] === r[0] && e[1] === r[1]) || (e[0] === r[1] && e[1] === r[0])
+  return [...EDGES.filter((e) => !remove.some((r) => same(e, r))), ...add]
+}
+
 /**
  * from から to までの経路を、ケーブルのつながりから幅優先探索で求める。
  * 攻撃者の機器は、そこが終点のとき以外は経由しない（正規の通信が攻撃者を通らないように）。
  * 経路が見つからなければ null を返す。
  */
-export function findRoute(nodes: NodeMap, from: NodeId, to: NodeId, avoid: readonly NodeId[]): NodeId[] | null {
+export function findRoute(
+  nodes: NodeMap,
+  from: NodeId,
+  to: NodeId,
+  avoid: readonly NodeId[],
+  edges: readonly Edge[] = EDGES,
+): NodeId[] | null {
   if (from === to) return [from]
   const adjacent = new Map<NodeId, NodeId[]>()
-  for (const [a, b] of EDGES) {
+  for (const [a, b] of edges) {
     if (!nodes[a] || !nodes[b]) continue
     adjacent.set(a, [...(adjacent.get(a) ?? []), b])
     adjacent.set(b, [...(adjacent.get(b) ?? []), a])
@@ -73,7 +88,7 @@ export function stepRoute(scenario: Scenario, nodes: NodeMap, from: string, to: 
   const a = scenario.topology.map[from]
   const b = scenario.topology.map[to]
   if (!a || !b) return []
-  return findRoute(nodes, a, b, attackerNodes(scenario)) ?? [a, b]
+  return findRoute(nodes, a, b, attackerNodes(scenario), edgesFor(scenario)) ?? [a, b]
 }
 
 /** そのモードでは登場しない人（CSIRTは事後対応だけ）の席。構成図にもシーケンス図にも出さない */
