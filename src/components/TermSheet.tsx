@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { MODE_LABEL, occurrencesOf, TERM_BY_ID } from '../glossary/match'
+import { MODE_LABEL, occurrencesOf, TERM_BY_ID, type Occurrence } from '../glossary/match'
 import { Link } from '../router'
 import { findScenario } from '../scenarios'
 import { topicPath, topicsMentioning } from '../topics'
@@ -7,14 +7,22 @@ import { topicPath, topicsMentioning } from '../topics'
 interface Props {
   termId: string
   /** 表示中の解説ページ（ほかの解説の一覧から除く） */
-  topicId: string
+  topicId?: string
+  /** 表示中のシナリオ。このシナリオの登場箇所は、ページを移らずに onJump で移動する */
+  scenarioId?: string
+  onJump?: (o: Occurrence) => void
+  /** 用語一覧を開く */
+  onOpenList?: () => void
   onClose: () => void
+  /** 画面のどちら側に出すか（PCのとき）。シナリオでは、前へ・次へのボタンを隠さないよう左に出す */
+  side?: 'left' | 'right'
 }
 
-const MAX_CHIPS = 6
+const MAX_HERE = 8
+const MAX_ELSEWHERE = 4
 
-/** 解説ページで用語を押したときに、画面の下に出す説明。図解の該当ステップや、ほかの解説へ移動できる */
-export function TermSheet({ termId, topicId, onClose }: Props) {
+/** 文中の用語を押したときに、画面の下（PCでは隅）に出す説明。図解のステップや解説へ移動できる */
+export function TermSheet({ termId, topicId, scenarioId, onJump, onOpenList, onClose, side = 'right' }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -25,11 +33,13 @@ export function TermSheet({ termId, topicId, onClose }: Props) {
 
   const term = TERM_BY_ID.get(termId)
   if (!term) return null
-  const steps = occurrencesOf(termId).slice(0, MAX_CHIPS)
-  const others = topicsMentioning(termId).filter((t) => t.topic.id !== topicId)
+  const all = occurrencesOf(termId)
+  const here = scenarioId ? all.filter((o) => o.scenarioId === scenarioId).slice(0, MAX_HERE) : []
+  const elsewhere = all.filter((o) => o.scenarioId !== scenarioId).slice(0, scenarioId ? MAX_ELSEWHERE : MAX_HERE)
+  const topics = topicsMentioning(termId).filter((t) => t.topic.id !== topicId)
 
   return (
-    <aside className="term-sheet" aria-label={`用語：${term.name}`} aria-live="polite">
+    <aside className={`term-sheet ${side}`} aria-label={`用語：${term.name}`} aria-live="polite">
       <div className="term-sheet-head">
         <h2>{term.name}</h2>
         <button type="button" className="sheet-close" onClick={onClose} aria-label="用語の説明を閉じる">
@@ -37,11 +47,23 @@ export function TermSheet({ termId, topicId, onClose }: Props) {
         </button>
       </div>
       <p>{term.description}</p>
-      {steps.length > 0 && (
+      {here.length > 0 && onJump && (
         <>
-          <h3>図解で見る</h3>
+          <h3>このシナリオで出てくるステップ</h3>
           <div className="chips">
-            {steps.map((o) => (
+            {here.map((o) => (
+              <button key={`${o.mode}${o.index}`} type="button" className={`chip k-${o.mode}`} onClick={() => onJump(o)}>
+                {MODE_LABEL[o.mode]} {o.index + 1}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      {elsewhere.length > 0 && (
+        <>
+          <h3>{scenarioId ? 'ほかのシナリオ' : '図解で見る'}</h3>
+          <div className="chips">
+            {elsewhere.map((o) => (
               <Link
                 key={`${o.scenarioId}${o.mode}${o.index}`}
                 to={`/${o.scenarioId}?mode=${o.mode}&step=${o.index + 1}&term=${encodeURIComponent(termId)}`}
@@ -53,17 +75,22 @@ export function TermSheet({ termId, topicId, onClose }: Props) {
           </div>
         </>
       )}
-      {others.length > 0 && (
+      {topics.length > 0 && (
         <>
-          <h3>ほかの解説</h3>
+          <h3>{topicId ? 'ほかの解説' : '解説'}</h3>
           <div className="chips">
-            {others.map(({ topic, section }) => (
+            {topics.map(({ topic, section }) => (
               <Link key={topic.id} to={topicPath(topic.id, section)} className="chip other">
                 {topic.name}
               </Link>
             ))}
           </div>
         </>
+      )}
+      {onOpenList && (
+        <button type="button" className="ghost-button sheet-list" onClick={onOpenList}>
+          用語の一覧を開く
+        </button>
       )}
     </aside>
   )

@@ -111,7 +111,7 @@ export function StepDetail({ scenario, mode, index, subs, sub, onSub, onPrev, on
             })}
           </ol>
         </section>
-        <PacketLayers scenario={scenario} step={step} activeTerm={activeTerm} onTerm={onTerm} />
+        {!step.wire && <PacketLayers scenario={scenario} step={step} activeTerm={activeTerm} onTerm={onTerm} />}
         <p className="note">{text(step.note)}</p>
         {step.point && (
           <div className="point">
