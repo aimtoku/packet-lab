@@ -141,7 +141,7 @@ export function TopicView({ topic }: { topic: Topic }) {
   )
 }
 
-function Block({ block, text }: { block: TopicBlock; text: (t: string) => ReactNode }) {
+export function Block({ block, text }: { block: TopicBlock; text: (t: string) => ReactNode }) {
   switch (block.kind) {
     case 'p':
       return <p className="topic-p">{text(block.text)}</p>

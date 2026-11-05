@@ -1,8 +1,8 @@
-import type { Mode } from "../types";
-import { dnshttps, fwdmz, ipport, packet, tcpudp } from "./basics";
-import { dns, mail, sig, sqli, tls, web, xss } from "./scenarios1";
-import { apt, arp, ddos, sso, storage, supply, vpn, wlan } from "./scenarios2";
-import type { PlainTexts } from "./types";
+import type { Mode } from '../types'
+import { dnshttps, fwdmz, ipport, packet, tcpudp } from './basics'
+import { dns, mail, sig, sqli, tls, web, xss } from './scenarios1'
+import { apt, arp, ddos, sso, storage, supply, vpn, wlan } from './scenarios2'
+import type { PlainTexts } from './types'
 
 /**
  * 「ひとことで」の説明（キーはシナリオのID）。
@@ -29,12 +29,8 @@ export const PLAIN: Readonly<Record<string, PlainTexts>> = {
   vpn,
   storage,
   supply,
-};
+}
 
-export function plainText(
-  scenarioId: string,
-  mode: Mode,
-  index: number,
-): string | undefined {
-  return PLAIN[scenarioId]?.[mode][index];
+export function plainText(scenarioId: string, mode: Mode, index: number): string | undefined {
+  return PLAIN[scenarioId]?.[mode][index]
 }

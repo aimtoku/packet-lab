@@ -5,6 +5,7 @@ import { stateAt } from '../playback/state'
 import { dwellFor, loadSpeed, prefersReducedMotion, saveSpeed, SPEEDS, type Speed } from '../playback/speed'
 import { subStepsFor, type SubStep } from '../playback/substeps'
 import { LEARNING } from '../learning'
+import { bookPath } from '../book'
 import { Link, navigate } from '../router'
 import { scenarios } from '../scenarios'
 import { nodesFor } from '../topology/route'
@@ -303,6 +304,9 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
               </button>
             ))}
           </div>
+          <Link to={bookPath(scenario.id)} className="scenario-book-link">
+            教科書<span className="long">で読む</span>
+          </Link>
           <button type="button" className="glossary-open" onClick={openDrawer} aria-haspopup="dialog">
             用語<span className="count-badge">{termCount}</span>
           </button>
