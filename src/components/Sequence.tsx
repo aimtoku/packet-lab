@@ -19,12 +19,14 @@ const ROW_TOP = 86
 const ROW_GAP = 46
 
 /**
- * シーケンス図に並べる登場人物。
- * そのモードに登場しない人（CSIRTは事後対応だけ）は除く。事後対応では、ステップに出てくる人だけを並べる。
+ * シーケンス図に並べる登場人物：そのモードのステップに出てくる人だけを並べる。
+ * 攻撃者は、正常や対策のモードでも薄く表示して位置を示す（事後対応では出てくるときだけ）。
  */
 export function sequenceActors(scenario: Scenario, mode: Mode) {
   const used = new Set(scenario.steps[mode].flatMap((s) => [s.from, s.to]))
-  return scenario.actors.filter((a) => (!a.onlyIn || a.onlyIn.includes(mode)) && (mode !== 'incident' || used.has(a.id)))
+  return scenario.actors.filter(
+    (a) => (!a.onlyIn || a.onlyIn.includes(mode)) && (used.has(a.id) || (a.attacker && mode !== 'incident')),
+  )
 }
 
 export function Sequence({ scenario, mode, index, onSelect, marked, progress, travelMs }: Props) {

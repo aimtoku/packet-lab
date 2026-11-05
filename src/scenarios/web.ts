@@ -114,7 +114,7 @@ export const web = defineScenario({
         receive: 'ブラウザ：Cookieを www.example.co.jp 用として保存します。以後、www.example.co.jp へのリクエストには自動で付けます。',
         wire: { app: 'HTTP（200 OK＋Set-Cookie）', transport: 'TCP', srcPort: '443', dstPort: '50300', srcIp: SITE, secure: 'TLS', focus: ['l7'] },
         changes: [
-          { table: 'server', key: 'セッション', value: 'SID=8f2a…（sato がログイン中）', at: 'ext1' },
+          { table: 'server', key: 'セッション', value: 'SID=8f2a…（sato がログイン中）', at: 'web' },
           { table: 'cookie', key: 'SID', value: '8f2a…（Secure、HttpOnly、SameSite=Lax）' },
         ],
       },
@@ -132,7 +132,7 @@ export const web = defineScenario({
         via: { fw: FW_OUT },
         receive: 'ブラウザ：送金フォームを表示します。トークンは画面には見えませんが、フォームの中に入っています。',
         wire: { app: 'HTTP（送金フォームのHTML）', transport: 'TCP', srcPort: '443', dstPort: '50300', srcIp: SITE, secure: 'TLS' },
-        changes: [{ table: 'server', key: 'CSRFトークン', value: 'b7c1e9…（SIDと対応）', at: 'ext1' }],
+        changes: [{ table: 'server', key: 'CSRFトークン', value: 'b7c1e9…（SIDと対応）', at: 'web' }],
       },
       {
         from: 'br',
@@ -232,7 +232,7 @@ export const web = defineScenario({
         via: { fw: FW_OUT },
         receive: 'ブラウザ：応答は罠ページの裏で受け取るので、利用者は気付きません。',
         wire: { app: 'HTTP（200 OK）', transport: 'TCP', srcPort: '443', dstPort: '50311', srcIp: SITE, secure: 'TLS' },
-        changes: [{ table: 'server', key: '口座残高', value: '500,000円（99999 へ 500,000円を送金）', tone: 'attack', at: 'ext1' }],
+        changes: [{ table: 'server', key: '口座残高', value: '500,000円（99999 へ 500,000円を送金）', tone: 'attack', at: 'web' }],
       },
     ],
     defense: [
