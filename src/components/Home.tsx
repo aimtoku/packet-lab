@@ -1,6 +1,7 @@
 import { TERMS } from '../glossary/terms'
 import { Link } from '../router'
 import { scenarios } from '../scenarios'
+import { TOPICS, topicPath } from '../topics'
 
 export function Home() {
   return (
@@ -42,6 +43,9 @@ export function Home() {
         <p className="howto-note">
           シナリオの画面では、用語一覧（{TERMS.length}語）の用語を押すと、その用語が出てくるステップに図と説明が移動します。
         </p>
+        <p className="howto-note">
+          リスクマネジメント、CSIRTの体制、脆弱性管理、法令、監査など、通信の図にしにくい分野は「解説」のページにまとめています。
+        </p>
       </section>
 
       <section aria-labelledby="list-title">
@@ -58,6 +62,24 @@ export function Home() {
                 <span className="card-meta">
                   {s.steps.normal.length + s.steps.attack.length + s.steps.defense.length} ステップ
                 </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section aria-labelledby="topics-title">
+        <h2 id="topics-title" className="section-title">
+          解説
+        </h2>
+        <ul className="cards">
+          {TOPICS.map((t) => (
+            <li key={t.id}>
+              <Link to={topicPath(t.id)} className="card">
+                <span className="card-kind">解説</span>
+                <span className="card-name">{t.name}</span>
+                <span className="card-text">{t.lead}</span>
+                <span className="card-meta">{t.sections.map((s) => s.title).join(' · ')}</span>
               </Link>
             </li>
           ))}

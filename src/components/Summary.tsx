@@ -1,4 +1,6 @@
 import type { Learning } from '../learning/types'
+import { Link } from '../router'
+import { topicPath, topicsForScenario } from '../topics'
 import type { Scenario } from '../types'
 import { TermText } from './TermText'
 
@@ -12,6 +14,7 @@ interface Props {
 /** まとめ：学習目標、よくある誤解、対策の比較、午後の問題文の手がかり、論点 */
 export function Summary({ scenario, learning, activeTerm, onTerm }: Props) {
   const { guide } = learning
+  const topics = topicsForScenario(scenario.id)
   const text = (t: string) => <TermText text={t} activeTerm={activeTerm} onTerm={onTerm} />
   return (
     <div className="study">
@@ -108,6 +111,22 @@ export function Summary({ scenario, learning, activeTerm, onTerm }: Props) {
           ))}
         </ul>
       </section>
+
+      {topics.length > 0 && (
+        <section className="study-card" aria-labelledby="study-topics-title">
+          <h2 id="study-topics-title">関連する解説</h2>
+          <ul className="related-links">
+            {topics.map((t) => (
+              <li key={t.id}>
+                <Link to={topicPath(t.id)}>
+                  <span className="related-name">{t.name}</span>
+                  <span className="related-threat">{t.lead}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   )
 }

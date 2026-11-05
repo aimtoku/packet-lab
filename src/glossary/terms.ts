@@ -1047,4 +1047,239 @@ export const TERMS: readonly Term[] = [
     description:
       'データの複製を、別の場所に保管すること。ランサムウェアに備えて、ネットワークから切り離した場所（オフライン）に、世代を分けて保管する。',
   },
+
+  // リスクマネジメント（解説ページ）
+  {
+    id: 'risk-assessment',
+    name: 'リスクアセスメント',
+    aliases: ['リスクアセスメント'],
+    description: 'リスク特定・リスク分析・リスク評価の3つのプロセスで、リスクを洗い出して大きさを見積もり、対応の要否と優先順位を決めること。',
+  },
+  {
+    id: 'risk-treatment',
+    name: 'リスク対応（低減・回避・移転・受容）',
+    aliases: ['リスク対応', 'リスク低減', 'リスク回避', 'リスク移転', 'リスク受容'],
+    description:
+      '評価したリスクへの対応。対策で小さくする低減、原因となる活動をやめる回避、保険や委託でほかの組織と分担する移転（共有）、そのまま受け入れる受容（保有）がある。',
+  },
+  {
+    id: 'residual-risk',
+    name: '残留リスク',
+    aliases: ['残留リスク'],
+    description: 'リスク対応をしたあとに残るリスク。リスク所有者（経営層など）が把握して承認し、定期的に見直す。',
+  },
+  {
+    id: 'isms',
+    name: 'ISMS（情報セキュリティマネジメントシステム）',
+    aliases: ['ISMS'],
+    description: '組織が情報セキュリティを継続して管理・改善する仕組み。要求事項は JIS Q 27001（ISO/IEC 27001）にまとめられ、PDCAで運用する。',
+  },
+  {
+    id: 'soa',
+    name: '適用宣言書',
+    aliases: ['適用宣言書'],
+    description: 'ISMSで、必要な管理策と、それを採用した理由・除外した理由、実施しているかどうかをまとめた文書。',
+  },
+
+  // 法令（解説ページ）
+  {
+    id: 'unauthorized-access-act',
+    name: '不正アクセス禁止法',
+    aliases: ['不正アクセス禁止法'],
+    description:
+      'アクセス制御のかかったコンピュータに、他人のIDとパスワードや脆弱性を使って不正に入ることや、IDとパスワードの不正な取得・提供、フィッシングなどの不正入力要求を禁止する法律。',
+  },
+  {
+    id: 'privacy-act',
+    name: '個人情報保護法',
+    aliases: ['個人情報保護法'],
+    description:
+      '個人情報を扱う事業者に、利用目的の特定、安全管理措置、第三者提供の制限などを義務づける法律。一定の漏えい等が起きたときは、個人情報保護委員会への報告と本人への通知が必要。',
+  },
+  {
+    id: 'sensitive-personal-info',
+    name: '要配慮個人情報',
+    aliases: ['要配慮個人情報'],
+    description: '人種、信条、病歴、犯罪の経歴など、不当な差別や偏見が生じないよう特に配慮が必要な個人情報。取得には、原則として本人の同意が必要。',
+  },
+  {
+    id: 'trade-secret',
+    name: '営業秘密',
+    aliases: ['営業秘密'],
+    description: '不正競争防止法で保護される秘密の情報。秘密管理性・有用性・非公知性の3つの要件をすべて満たす必要がある。',
+  },
+  {
+    id: 'virus-crime',
+    name: 'ウイルス作成罪（不正指令電磁的記録に関する罪）',
+    aliases: ['ウイルス作成罪'],
+    description: '正当な理由なく、他人のコンピュータで実行させる目的で、マルウェアを作成・提供・供用・取得・保管することを処罰する、刑法の規定。',
+  },
+
+  // 監査（解説ページ）
+  {
+    id: 'system-audit',
+    name: 'システム監査',
+    aliases: ['システム監査'],
+    description: 'ITの利活用に関するリスクへの対応が適切かどうかを、独立した立場の監査人が検証・評価して、保証や助言を行うこと。',
+  },
+  {
+    id: 'audit-evidence',
+    name: '監査証拠',
+    aliases: ['監査証拠'],
+    description: '監査の結論を裏付ける事実。聞き取りだけでなく、ログ、設定、記録などを実際に確かめて入手する。',
+  },
+  {
+    id: 'audit-workpaper',
+    name: '監査調書',
+    aliases: ['監査調書'],
+    description: '監査人が実施した手続き、入手した証拠、結論に至った過程の記録。監査の結論の根拠として作成し、保管する。',
+  },
+  {
+    id: 'internal-control',
+    name: '内部統制',
+    aliases: ['内部統制'],
+    description: '業務の有効性と効率性、財務報告の信頼性、法令の遵守、資産の保全を目的に、組織の中に組み込む仕組み。',
+  },
+  {
+    id: 'it-control',
+    name: 'IT全般統制・IT業務処理統制',
+    aliases: ['IT全般統制', 'IT業務処理統制'],
+    description:
+      'IT全般統制は、アクセス権の管理や変更管理など、システムが正しく動き続けるための基盤の統制。IT業務処理統制は、入力のチェックや承認など、業務のシステムに組み込まれた統制。',
+  },
+  {
+    id: 'segregation-of-duties',
+    name: '職務の分離',
+    aliases: ['職務の分離'],
+    description: '1人に権限を集中させず、申請と承認、開発と本番への反映などを別の人が行うようにすること。不正や誤りを防ぐ。',
+  },
+
+  // CSIRTの体制（解説ページ）
+  {
+    id: 'soc',
+    name: 'SOC',
+    aliases: ['SOC'],
+    description: 'Security Operation Center。ログやアラートを常時監視し、異常を検知・分析する組織やサービス。',
+  },
+  {
+    id: 'psirt',
+    name: 'PSIRT',
+    aliases: ['PSIRT'],
+    description: '自社が提供する製品やサービスの脆弱性に対応するチーム。報告の受付、調査、修正、利用者への公表を行う。',
+  },
+  {
+    id: 'nco',
+    name: '国家サイバー統括室（NCO）',
+    aliases: ['国家サイバー統括室'],
+    description: '2025年7月に、内閣サイバーセキュリティセンター（NISC）を改組して内閣官房に設置された組織。国のサイバーセキュリティ政策の総合調整を担う。',
+  },
+  {
+    id: 'tlp',
+    name: 'TLP（Traffic Light Protocol）',
+    aliases: ['TLP'],
+    description: '共有する情報に付ける区分（RED、AMBER、GREEN、CLEAR など）で、受け取った側が情報をどこまで広めてよいかを示す。',
+  },
+  {
+    id: 'tabletop',
+    name: '机上演習',
+    aliases: ['机上演習'],
+    description: 'インシデントのシナリオに沿って、関係者が判断や連絡の流れを話し合いながら確かめる訓練。手順書の不足を見つけて見直す。',
+  },
+
+  // 脆弱性管理（解説ページ）
+  {
+    id: 'cve',
+    name: 'CVE',
+    aliases: ['CVE'],
+    description: '脆弱性ごとに付ける共通の識別番号（CVE-年-番号）。同じ脆弱性を、どの情報源でも同じ番号で特定できる。',
+  },
+  {
+    id: 'cvss',
+    name: 'CVSS',
+    aliases: ['CVSS'],
+    description:
+      '脆弱性の深刻度を0.0〜10.0の値で評価する共通の方法。v3.1は基本・現状・環境の3つ、v4.0は基本・脅威・環境・補足の評価基準からなる。',
+  },
+  {
+    id: 'cwe',
+    name: 'CWE',
+    aliases: ['CWE'],
+    description: '脆弱性の種類（SQLインジェクション、XSS など）を分類した共通の一覧。',
+  },
+  {
+    id: 'jvn',
+    name: 'JVN',
+    aliases: ['JVN iPedia', 'JVN'],
+    description: 'IPAとJPCERT/CCが共同で運営する、国内向けの脆弱性対策情報のポータル。JVN iPedia は、脆弱性対策情報のデータベース。',
+  },
+  {
+    id: 'kev',
+    name: 'KEV',
+    aliases: ['KEV'],
+    description: '米国のCISAが公開する、実際に悪用が確認された脆弱性の一覧。対応の優先度を決める参考にする。',
+  },
+  {
+    id: 'sbom',
+    name: 'SBOM（ソフトウェア部品表）',
+    aliases: ['SBOM'],
+    description: 'ソフトウェアに含まれる部品（ライブラリなど）とバージョンの一覧。新しい脆弱性が公表されたとき、影響を受ける製品をすぐに特定できる。',
+  },
+  {
+    id: 'early-warning',
+    name: '情報セキュリティ早期警戒パートナーシップ',
+    aliases: ['情報セキュリティ早期警戒パートナーシップ', '早期警戒パートナーシップ'],
+    description:
+      '国内で脆弱性の情報を扱う枠組み。発見者はIPAに届け出て、製品の脆弱性はJPCERT/CCが開発者と調整してJVNで公表し、Webサイトの脆弱性はIPAが運営者に通知する。',
+  },
+  {
+    id: 'workaround',
+    name: '回避策（緩和策）',
+    aliases: ['回避策'],
+    description: '修正プログラムをすぐに適用できないときに、通信の制限や機能の無効化などで、脆弱性を悪用されるリスクを下げる対策。',
+  },
+
+  // クラウド（解説ページ）
+  {
+    id: 'cloud-models',
+    name: 'IaaS・PaaS・SaaS',
+    aliases: ['IaaS', 'PaaS', 'SaaS'],
+    description:
+      'クラウドサービスの形態。IaaSは仮想マシンなどの基盤、PaaSはアプリケーションを動かす環境、SaaSはアプリケーションそのものを提供する。形態によって、利用者が責任を持つ範囲が変わる。',
+  },
+  {
+    id: 'cspm',
+    name: 'CSPM',
+    aliases: ['CSPM'],
+    description: 'Cloud Security Posture Management。クラウドの設定を継続的に点検し、公開の設定や過剰な権限などの問題を見つける仕組み。',
+  },
+  {
+    id: 'casb',
+    name: 'CASB',
+    aliases: ['CASB'],
+    description: 'Cloud Access Security Broker。社員のクラウドサービスの利用を可視化し、許可していない利用（シャドーIT）やデータの持ち出しを制御する仕組み。',
+  },
+  {
+    id: 'shadow-it',
+    name: 'シャドーIT',
+    aliases: ['シャドーIT'],
+    description: '組織が許可していないクラウドサービスや機器を、社員が業務に使うこと。管理の外で情報が漏えいするおそれがある。',
+  },
+  {
+    id: 'ismap',
+    name: 'ISMAP',
+    aliases: ['ISMAP-LIU', 'ISMAP'],
+    description: '政府情報システムのためのセキュリティ評価制度。政府が求めるセキュリティの要求を満たすクラウドサービスを、あらかじめ評価して登録する。',
+  },
+  {
+    id: 'iac',
+    name: 'IaC（インフラのコード化）',
+    aliases: ['IaC'],
+    description: 'サーバやネットワークなどの設定をコードで管理すること。レビューと自動の検査を経て反映でき、設定ミスを減らせる。',
+  },
+  {
+    id: 'sla',
+    name: 'SLA',
+    aliases: ['SLA'],
+    description: 'Service Level Agreement。サービスの品質（稼働率、障害の連絡の時間など）について、事業者と利用者が合意したもの。',
+  },
 ]

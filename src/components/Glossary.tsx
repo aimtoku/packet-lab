@@ -11,6 +11,8 @@ import {
   type Occurrence,
 } from '../glossary/match'
 import { TERMS } from '../glossary/terms'
+import { Link } from '../router'
+import { TOPICS, topicPath, topicsMentioning } from '../topics'
 
 interface Props {
   idPrefix: string
@@ -35,15 +37,25 @@ export function Glossary({ idPrefix, scenario, mode, index, selectedTerm, onSele
   const current = scenarioTerms(scenario.id)
   const inStep = new Set(stepTerms(scenario.id, mode, index))
 
+  // ほかの用語は、最初に出てくるシナリオ（シナリオに出てこなければ解説ページ）ごとにまとめる
   const others = useMemo(() => {
     const groups = new Map<string, string[]>()
     for (const term of TERMS) {
       if (current.includes(term.id)) continue
-      const home = scenariosMentioning(term.id)[0]
+      const scenarioHome = scenariosMentioning(term.id)[0]
+      const topicHome = topicsMentioning(term.id)[0]?.topic.id
+      const home = scenarioHome ?? (topicHome ? `topic:${topicHome}` : undefined)
       if (!home) continue
       groups.set(home, [...(groups.get(home) ?? []), term.id])
     }
-    return scenarios.filter((s) => groups.has(s.id)).map((s) => ({ scenario: s, terms: groups.get(s.id) ?? [] }))
+    return [
+      ...scenarios.filter((s) => groups.has(s.id)).map((s) => ({ key: s.id, name: s.name, terms: groups.get(s.id) ?? [] })),
+      ...TOPICS.filter((t) => groups.has(`topic:${t.id}`)).map((t) => ({
+        key: `topic:${t.id}`,
+        name: `解説：${t.name}`,
+        terms: groups.get(`topic:${t.id}`) ?? [],
+      })),
+    ]
   }, [current])
 
   const q = query.trim().toLowerCase()
@@ -71,6 +83,7 @@ export function Glossary({ idPrefix, scenario, mode, index, selectedTerm, onSele
     const selected = termId === selectedTerm
     const here = occurrencesOf(termId, scenario.id)
     const elsewhere = occurrencesOf(termId).filter((o) => o.scenarioId !== scenario.id)
+    const topics = topicsMentioning(termId)
     const onlyInPoints = here.length === 0 && current.includes(termId)
     const bodyId = `${idPrefix}-${termId}`
     return (
@@ -110,6 +123,15 @@ export function Glossary({ idPrefix, scenario, mode, index, selectedTerm, onSele
                 ))}
               </div>
             )}
+            {topics.length > 0 && (
+              <div className="chips" aria-label="解説ページ">
+                {topics.map(({ topic, section }) => (
+                  <Link key={topic.id} to={topicPath(topic.id, section)} className="chip other">
+                    解説：{topic.name}
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </li>
@@ -143,10 +165,10 @@ export function Glossary({ idPrefix, scenario, mode, index, selectedTerm, onSele
               <ul>{current.map(item)}</ul>
             </section>
             <details className="other-terms" open={othersOpen} onToggle={(e) => setOthersOpen(e.currentTarget.open)}>
-              <summary>ほかのシナリオの用語（{others.reduce((n, g) => n + g.terms.length, 0)}）</summary>
+              <summary>ほかのシナリオと解説の用語（{others.reduce((n, g) => n + g.terms.length, 0)}）</summary>
               {others.map((g) => (
-                <section key={g.scenario.id}>
-                  <h4>{g.scenario.name}</h4>
+                <section key={g.key}>
+                  <h4>{g.name}</h4>
                   <ul>{g.terms.map(item)}</ul>
                 </section>
               ))}

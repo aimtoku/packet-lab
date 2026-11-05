@@ -1,8 +1,10 @@
 import { useEffect } from 'react'
 import { Home } from './components/Home'
 import { ScenarioView } from './components/ScenarioView'
+import { TopicView } from './components/TopicView'
 import { Link, usePathname } from './router'
 import { findScenario } from './scenarios'
+import { findTopic } from './topics'
 
 const SITE_NAME = 'パケット攻防ラボ'
 const REPOSITORY_URL = 'https://github.com/aimtoku/packet-lab'
@@ -10,12 +12,18 @@ const REPOSITORY_URL = 'https://github.com/aimtoku/packet-lab'
 export function App() {
   const pathname = usePathname()
   const id = pathname.replace(/^\/+|\/+$/g, '')
-  const scenario = id ? findScenario(id) : undefined
-  const notFound = id !== '' && !scenario
+  const topicId = id.match(/^topics\/([a-z0-9-]+)$/)?.[1]
+  const topic = topicId ? findTopic(topicId) : undefined
+  const scenario = id && !topicId ? findScenario(id) : undefined
+  const notFound = id !== '' && !scenario && !topic
 
   useEffect(() => {
-    document.title = scenario ? `${scenario.name}：${scenario.threat} | ${SITE_NAME}` : SITE_NAME
-  }, [scenario])
+    document.title = scenario
+      ? `${scenario.name}：${scenario.threat} | ${SITE_NAME}`
+      : topic
+        ? `${topic.name}（解説） | ${SITE_NAME}`
+        : SITE_NAME
+  }, [scenario, topic])
 
   return (
     <div className="site">
@@ -36,6 +44,8 @@ export function App() {
       <main className={scenario ? 'wrap wide' : 'wrap'}>
         {scenario ? (
           <ScenarioView key={scenario.id} scenario={scenario} />
+        ) : topic ? (
+          <TopicView key={topic.id} topic={topic} />
         ) : notFound ? (
           <div className="not-found">
             <h1>ページが見つかりません</h1>

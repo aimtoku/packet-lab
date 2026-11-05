@@ -4,14 +4,14 @@ import type { ChoiceQuestion, Learning, WrittenQuestion } from '../learning/type
 import { TermText } from './TermText'
 
 interface Props {
-  learning: Learning
+  quiz: Learning['quiz']
   activeTerm: string | null
   onTerm: (termId: string) => void
 }
 
 /** 確認問題：午前の形式（4択）と、午後の形式（記述）。答えは保存しない */
-export function Quiz({ learning, activeTerm, onTerm }: Props) {
-  const { choices, written } = learning.quiz
+export function Quiz({ quiz, activeTerm, onTerm }: Props) {
+  const { choices, written } = quiz
   const [picks, setPicks] = useState<(number | undefined)[]>([])
   const text = (t: string) => <TermText text={t} activeTerm={activeTerm} onTerm={onTerm} />
   const answered = picks.filter((p) => p !== undefined).length
