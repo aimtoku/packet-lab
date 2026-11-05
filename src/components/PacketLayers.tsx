@@ -7,6 +7,8 @@ interface Props {
   step: Step<string>
   activeTerm: string | null
   onTerm: (termId: string) => void
+  /** 見出しを付けない（「詳しく見る」の中に置くとき） */
+  bare?: boolean
 }
 
 /** 層の見出しの1行。例：「IP　PC 192.168.1.10 → キャッシュDNS 192.168.1.53」 */
@@ -60,7 +62,7 @@ function headersOf(step: Step<string>, fromName: string, toName: string): Header
 }
 
 /** 1つのステップのパケットを、層ごとに入れ子の箱で表す */
-export function PacketLayers({ scenario, step, activeTerm, onTerm }: Props) {
+export function PacketLayers({ scenario, step, activeTerm, onTerm, bare = false }: Props) {
   const actorName = (id: string) => scenario.actors.find((a) => a.id === id)?.name ?? id
   const self = step.from === step.to
   const headers = headersOf(step, actorName(step.from), actorName(step.to))
@@ -129,6 +131,15 @@ export function PacketLayers({ scenario, step, activeTerm, onTerm }: Props) {
     )
   }
 
+  if (bare) {
+    return (
+      <div className="packet-section">
+        <p className="sub-title-note">外側から順に、層ごとの見出し</p>
+        <div className="layers">{box(0)}</div>
+        {step.wire.remark && <p className="layer-remark">{text(step.wire.remark)}</p>}
+      </div>
+    )
+  }
   return (
     <section className="packet-section" aria-labelledby="packet-title">
       <h3 id="packet-title" className="sub-title">

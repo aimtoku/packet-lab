@@ -9,12 +9,16 @@ import { Link, navigate } from '../router'
 import { scenarios } from '../scenarios'
 import { nodesFor } from '../topology/route'
 import { Glossary } from './Glossary'
+import { More, useMoreOpen } from './MoreDetails'
+import { PacketLayers } from './PacketLayers'
 import { Player } from './Player'
 import { Quiz } from './Quiz'
 import { Sequence } from './Sequence'
 import { StatePanel } from './StatePanel'
 import { StepDetail } from './StepDetail'
+import { StoryFlow } from './StoryFlow'
 import { Summary } from './Summary'
+import { TermSheet } from './TermSheet'
 import { TermText } from './TermText'
 import { Topology } from './Topology'
 
@@ -28,8 +32,6 @@ const VIEWS: readonly { id: View; label: string }[] = [
   { id: 'quiz', label: '確認問題' },
 ]
 
-/** 用語一覧が左に常に表示される幅（styles.css と合わせる） */
-const SIDEBAR_QUERY = '(min-width: 1200px)'
 /** 構成図と詳細が縦に並ぶ幅（styles.css と合わせる） */
 const STACKED_QUERY = '(max-width: 879px)'
 
@@ -76,7 +78,10 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
   /** 後ろへ戻ったときは、パケットを動かさずに置く */
   const [instant, setInstant] = useState(false)
   const drawerRef = useRef<HTMLDialogElement>(null)
-  const pointsRef = useRef<HTMLElement>(null)
+  /** 文中の用語を押したときの説明を表示しているか */
+  const [sheet, setSheet] = useState(false)
+  /** 「詳しく見る」で開いている項目 */
+  const [moreOpen, setMoreOpen] = useMoreOpen()
   const topologyRef = useRef<HTMLElement>(null)
 
   const nodes = useMemo(() => nodesFor(scenario), [scenario])
@@ -197,16 +202,23 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
     }
   }
 
-  const isSidebar = () => window.matchMedia(SIDEBAR_QUERY).matches
   const closeDrawer = () => drawerRef.current?.close()
-  const openDrawer = () => drawerRef.current?.showModal()
+  const openDrawer = () => {
+    setSheet(false)
+    drawerRef.current?.showModal()
+  }
+  const closeSheet = useCallback(() => {
+    setSheet(false)
+    setState((s) => ({ ...s, term: null }))
+  }, [])
 
   /** 論点に出てくる用語：まとめの「論点」へ移動する（事後対応の論点も並んでいる） */
   const showPoints = (termId: string) => {
     setState((s) => ({ ...s, term: termId, view: learning ? 'summary' : 'diagram' }))
     closeDrawer()
+    if (!learning) setMoreOpen('points', true)
     window.requestAnimationFrame(() => {
-      const target = document.getElementById('study-points-title') ?? pointsRef.current
+      const target = document.getElementById('study-points-title') ?? document.querySelector('.more-points')
       target?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' })
     })
   }
@@ -218,7 +230,7 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
       return
     }
     go({ mode: o.mode, index: o.index, term: termId })
-    if (!isSidebar()) closeDrawer()
+    closeDrawer()
   }
 
   /**
@@ -240,10 +252,14 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
     jump(termId, target)
   }
 
-  /** 説明文の中の用語を押したとき：一覧でその用語の意味を開く */
+  /** 説明文の中の用語を押したとき：その用語の説明を小さく開く（同じ用語をもう一度押すと閉じる） */
   const selectFromText = (termId: string) => {
+    if (sheet && term === termId) {
+      closeSheet()
+      return
+    }
     setState((s) => ({ ...s, term: termId }))
-    if (!isSidebar()) openDrawer()
+    setSheet(true)
   }
 
   const marked = useMemo(
@@ -264,8 +280,11 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
     onShowPoints: showPoints,
   }
 
+  const step = scenario.steps[mode][index]
+  const changedNow = views.some((v) => v.rows.some((r) => r.changedNow))
+
   return (
-    <div className="scenario">
+    <div className={`scenario${sheet ? ' has-sheet' : ''}`}>
       <nav className="scenario-tabs" aria-label="シナリオ">
         {scenarios.map((s) => (
           <Link key={s.id} to={`/${s.id}`} className="scenario-tab" aria-current={s.id === scenario.id ? 'page' : undefined}>
@@ -275,31 +294,34 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
         ))}
       </nav>
 
-      <div className="scenario-body">
-        <aside className="glossary-side" aria-label="用語一覧">
-          <Glossary idPrefix="side" {...glossaryProps} />
-        </aside>
-
-        <div className="scenario-main">
-          <div className="views-bar">
-            <div className="views" role="group" aria-label="表示の切り替え">
-              {VIEWS.map((v) => (
-                <button key={v.id} type="button" aria-pressed={v.id === view} onClick={() => changeView(v.id)}>
-                  {v.label}
-                </button>
-              ))}
-            </div>
-            <button type="button" className="glossary-open" onClick={openDrawer} aria-haspopup="dialog">
-              用語<span className="count-badge">{termCount}</span>
-            </button>
+      <div className="scenario-main">
+        <div className="views-bar">
+          <div className="views" role="group" aria-label="表示の切り替え">
+            {VIEWS.map((v) => (
+              <button key={v.id} type="button" aria-pressed={v.id === view} onClick={() => changeView(v.id)}>
+                {v.label}
+              </button>
+            ))}
           </div>
+          <button type="button" className="glossary-open" onClick={openDrawer} aria-haspopup="dialog">
+            用語<span className="count-badge">{termCount}</span>
+          </button>
+        </div>
 
-          {view === 'summary' && learning && <Summary scenario={scenario} learning={learning} activeTerm={term} onTerm={selectFromText} />}
-          {view === 'quiz' && learning && <Quiz quiz={learning.quiz} activeTerm={term} onTerm={selectFromText} />}
+        {view === 'summary' && learning && <Summary scenario={scenario} learning={learning} activeTerm={term} onTerm={selectFromText} />}
+        {view === 'quiz' && learning && <Quiz quiz={learning.quiz} activeTerm={term} onTerm={selectFromText} />}
 
-          {view === 'diagram' && (
-            <>
-            <div className="toolbar">
+        {view === 'diagram' && (
+          <>
+            <StoryFlow
+              scenario={scenario}
+              mode={mode}
+              index={index}
+              onSelect={(i) => go({ index: i })}
+              marked={marked}
+              activeTerm={term}
+              onTerm={selectFromText}
+            >
               <div className="modes" role="group" aria-label="表示モード">
                 {MODES.map((m) => (
                   <button key={m} type="button" className={`k-${m}`} aria-pressed={m === mode} onClick={() => changeMode(m)}>
@@ -308,15 +330,10 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
                   </button>
                 ))}
               </div>
-            </div>
-            <p className="summary">
-              <strong>{mode === 'incident' ? 'インシデント対応' : MODE_LABEL[mode]}：</strong>
-              <TermText text={scenario.summary[mode]} activeTerm={term} onTerm={selectFromText} />
-            </p>
+            </StoryFlow>
 
             <div className="workspace">
               <section className="panel topology" aria-label="ネットワーク構成図" ref={topologyRef}>
-                <h2 className="panel-label">ネットワーク構成</h2>
                 <div className="drawing">
                   <Topology
                     scenario={scenario}
@@ -356,8 +373,6 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
                 </ul>
               </section>
 
-              <StatePanel views={views} activeTerm={term} onTerm={selectFromText} />
-
               <StepDetail
                 scenario={scenario}
                 mode={mode}
@@ -371,73 +386,105 @@ export function ScenarioView({ scenario }: { scenario: Scenario }) {
                 onTerm={selectFromText}
               />
 
-              <section className="panel sequence" aria-label="シーケンス図">
-                <h2 className="panel-label">シーケンス図</h2>
-                <div className="drawing">
-                  <Sequence
-                    scenario={scenario}
-                    mode={mode}
-                    index={index}
-                    onSelect={(i) => go({ index: i })}
-                    marked={marked}
-                    progress={subs.length > 1 ? sub / (subs.length - 1) : 1}
-                    travelMs={travelMs}
-                  />
-                </div>
-                <ul className="legend">
-                  <li>
-                    <span className="swatch k-normal" aria-hidden="true" />
-                    正常
-                  </li>
-                  <li>
-                    <span className="swatch k-attack" aria-hidden="true" />
-                    攻撃
-                  </li>
-                  <li>
-                    <span className="swatch k-blocked" aria-hidden="true" />
-                    攻撃を阻止
-                  </li>
-                  <li>
-                    <span className="swatch k-defense" aria-hidden="true" />
-                    対策が働く
-                  </li>
-                  <li>
-                    <span className="swatch k-discarded" aria-hidden="true" />
-                    破棄
-                  </li>
-                  {mode === 'incident' && (
+              <div className="more-list" aria-label="詳しく見る">
+                <p className="more-head">詳しく見る</p>
+                {step?.wire && (
+                  <More id="packet" title="パケットの中身" badge={step.wire.app} open={moreOpen.has('packet')} onToggle={setMoreOpen}>
+                    <PacketLayers scenario={scenario} step={step} activeTerm={term} onTerm={selectFromText} bare />
+                  </More>
+                )}
+                {views.length > 0 && (
+                  <More
+                    id="state"
+                    title="機器の中の状態"
+                    badge={changedNow ? 'このステップで変化あり' : undefined}
+                    open={moreOpen.has('state')}
+                    onToggle={setMoreOpen}
+                  >
+                    <StatePanel views={views} activeTerm={term} onTerm={selectFromText} bare />
+                  </More>
+                )}
+                <More id="sequence" title="シーケンス図（だれとだれが、どの順にやり取りするか）" open={moreOpen.has('sequence')} onToggle={setMoreOpen}>
+                  <div className="drawing">
+                    <Sequence
+                      scenario={scenario}
+                      mode={mode}
+                      index={index}
+                      onSelect={(i) => go({ index: i })}
+                      marked={marked}
+                      progress={subs.length > 1 ? sub / (subs.length - 1) : 1}
+                      travelMs={travelMs}
+                    />
+                  </div>
+                  <ul className="legend">
                     <li>
-                      <span className="swatch k-response" aria-hidden="true" />
-                      インシデント対応（連絡・指示・調査）
+                      <span className="swatch k-normal" aria-hidden="true" />
+                      正常
                     </li>
-                  )}
-                  {term && (
                     <li>
-                      <span className="swatch-dot" aria-hidden="true" />
-                      「{TERM_BY_ID.get(term)?.name}」が出てくるステップ
+                      <span className="swatch k-attack" aria-hidden="true" />
+                      攻撃
                     </li>
-                  )}
-                </ul>
-              </section>
+                    <li>
+                      <span className="swatch k-blocked" aria-hidden="true" />
+                      攻撃を阻止
+                    </li>
+                    <li>
+                      <span className="swatch k-defense" aria-hidden="true" />
+                      対策が働く
+                    </li>
+                    <li>
+                      <span className="swatch k-discarded" aria-hidden="true" />
+                      破棄
+                    </li>
+                    {mode === 'incident' && (
+                      <li>
+                        <span className="swatch k-response" aria-hidden="true" />
+                        インシデント対応（連絡・指示・調査）
+                      </li>
+                    )}
+                    {term && (
+                      <li>
+                        <span className="swatch-dot" aria-hidden="true" />
+                        「{TERM_BY_ID.get(term)?.name}」が出てくるステップ
+                      </li>
+                    )}
+                  </ul>
+                </More>
+                <More
+                  id="points"
+                  title={mode === 'incident' ? 'インシデント対応で押さえる論点' : '午後で押さえる論点'}
+                  open={moreOpen.has('points')}
+                  onToggle={setMoreOpen}
+                >
+                  <ul className="plain-list">
+                    {(mode === 'incident' ? scenario.incidentPoints : scenario.points).map((p, i) => (
+                      <li key={i}>
+                        <TermText text={p} activeTerm={term} onTerm={selectFromText} />
+                      </li>
+                    ))}
+                  </ul>
+                </More>
+              </div>
             </div>
 
-            <section className="points" aria-labelledby="points-title" ref={pointsRef}>
-              <h2 id="points-title">{mode === 'incident' ? 'インシデント対応で押さえる論点' : '午後で押さえる論点'}</h2>
-              <ul>
-                {(mode === 'incident' ? scenario.incidentPoints : scenario.points).map((p, i) => (
-                  <li key={i}>
-                    <TermText text={p} activeTerm={term} onTerm={selectFromText} />
-                  </li>
-                ))}
-              </ul>
-            </section>
             <p className="hint">
               再生すると、パケットが機器に着くたびに止まって、そこで何が起きているかを説明します。キーボードの ← → で1つずつ進めたり戻したり、スペースで再生・一時停止ができます。
             </p>
-            </>
-          )}
-        </div>
+          </>
+        )}
       </div>
+
+      {sheet && term && (
+        <TermSheet
+          termId={term}
+          scenarioId={scenario.id}
+          onJump={(o) => jump(term, o)}
+          onOpenList={openDrawer}
+          onClose={closeSheet}
+          side="left"
+        />
+      )}
 
       <dialog ref={drawerRef} className="glossary-drawer" aria-label="用語一覧" onClick={(e) => e.target === e.currentTarget && closeDrawer()}>
         <div className="drawer-inner">

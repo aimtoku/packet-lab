@@ -433,6 +433,7 @@ main.wrap {
 }
 
 .modes {
+  margin-bottom: 12px;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   border: 1px solid var(--line);
@@ -525,16 +526,41 @@ main.wrap {
   display: grid;
   gap: 16px;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: 'topology' 'state' 'detail' 'sequence';
+  grid-template-areas: 'topology' 'detail' 'more';
 }
 
 @media (min-width: 880px) {
   .workspace {
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-    grid-template-areas: 'topology detail' 'state detail' 'sequence detail';
+    grid-template-areas: 'topology detail' 'more detail';
     /* 詳細が長いときに、左の図の間が空かないよう、余りは最後の行に回す */
-    grid-template-rows: auto auto 1fr;
+    grid-template-rows: auto 1fr;
     align-items: start;
+  }
+
+  /* 構成図は、画面に収まる高さまで（横に広い画面で大きくなりすぎないように） */
+  .topology .drawing svg {
+    max-height: calc(100vh - 230px);
+  }
+}
+
+/* 横に広い画面では、構成図の幅を抑え、残りを説明に回す */
+@media (min-width: 1200px) {
+  .workspace {
+    grid-template-columns: minmax(0, 620px) minmax(0, 1fr);
+  }
+
+  /* 広い画面では、右の「このステップで起きていること」に同じ説明があるので、図の下の説明は読み上げ用だけにする */
+  .workspace .caption {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
   }
 
   /* 詳細は画面に収まる高さにして、本文だけをスクロールさせる（前へ・次へを常に見せる） */
@@ -568,12 +594,8 @@ main.wrap {
   grid-area: topology;
 }
 
-.state {
-  grid-area: state;
-}
-
-.sequence {
-  grid-area: sequence;
+.more-list {
+  grid-area: more;
 }
 
 .detail {
@@ -2109,32 +2131,6 @@ main.wrap {
   color: var(--muted);
 }
 
-/* シナリオ画面の左右の配置：広い画面では用語一覧を左に常に表示する */
-.glossary-side {
-  display: none;
-}
-
-@media (min-width: 1200px) {
-  .scenario-body {
-    display: grid;
-    grid-template-columns: 272px minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
-  }
-
-  .glossary-side {
-    display: block;
-    position: sticky;
-    top: 12px;
-    height: calc(100vh - 24px);
-    min-width: 0;
-  }
-
-  .glossary-open {
-    display: none;
-  }
-}
-
 /* 用語一覧 */
 .glossary {
   display: flex;
@@ -2320,15 +2316,16 @@ main.wrap {
   font: inherit;
   color: inherit;
   text-align: inherit;
-  text-decoration: underline dotted var(--term-line);
-  text-decoration-thickness: 1.5px;
-  text-underline-offset: 3px;
+  text-decoration: underline dotted color-mix(in srgb, var(--term-line) 50%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
   cursor: pointer;
   border-radius: 3px;
 }
 
 .term-link:hover {
   background: var(--soft);
+  text-decoration-color: var(--term-line);
 }
 
 .term-link.active {
@@ -2747,5 +2744,324 @@ a.chip {
     padding: 14px 16px;
     border: 1px solid var(--line);
     border-radius: 12px;
+  }
+}
+
+/* モードの流れ：ステップの一覧と、いまの位置 */
+.flow {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  min-width: 0;
+}
+
+.flow-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.flow-head h2 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.flow-count {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-summary {
+  margin: 4px 0 10px;
+  max-width: 80ch;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.flow-steps {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 4px;
+}
+
+.flow-step {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.flow-step + .flow-step::before {
+  content: '→';
+  color: var(--line);
+  font-size: 0.8rem;
+}
+
+.flow-step button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 22em;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+
+.flow-step button:hover {
+  border-color: var(--accent);
+  color: var(--fg);
+}
+
+.flow-no {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.6em;
+  height: 1.6em;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-step.k-attack .flow-no,
+.flow-step.k-blocked .flow-no {
+  border-color: var(--atk);
+  color: var(--atk);
+}
+
+.flow-step.k-defense .flow-no {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.flow-step.k-discarded .flow-no {
+  border-color: var(--gray);
+  color: var(--gray);
+}
+
+.flow-step.k-response .flow-no {
+  border-color: var(--resp);
+  color: var(--resp);
+}
+
+.flow-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flow-step.done button {
+  color: var(--muted);
+}
+
+/* いまのステップ：番号を塗り、文字をはっきりさせる */
+.flow-step.now button {
+  border-color: var(--fg);
+  color: var(--fg);
+  font-weight: 700;
+  background: var(--soft);
+}
+
+.flow-step.now .flow-no {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.flow-step.now.k-attack .flow-no,
+.flow-step.now.k-blocked .flow-no {
+  background: var(--atk);
+  border-color: var(--atk);
+}
+
+.flow-step.now.k-defense .flow-no {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+
+.flow-step.now.k-discarded .flow-no {
+  background: var(--gray);
+  border-color: var(--gray);
+}
+
+.flow-step.now.k-response .flow-no {
+  background: var(--resp);
+  border-color: var(--resp);
+}
+
+.flow-term {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--term-line);
+}
+
+/* モードの切り替えは、流れのカードの上に、タブとして付ける */
+.flow > .modes {
+  margin: -12px -14px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 12px 12px 0 0;
+}
+
+/* スマホでは、いまのステップだけ題名を出し、ほかは番号だけにする */
+@media (max-width: 879px) {
+  .flow-step + .flow-step::before {
+    content: none;
+  }
+
+  .flow-step:not(.now) .flow-title {
+    display: none;
+  }
+
+  .flow-step:not(.now) button {
+    padding: 3px;
+  }
+
+  .flow-step.now {
+    flex: 1 1 12em;
+    min-width: 0;
+  }
+
+  .flow-step.now button {
+    max-width: none;
+    width: 100%;
+    padding-right: 12px;
+  }
+
+  .flow-step.now .flow-title {
+    white-space: normal;
+  }
+}
+
+/* 詳しく見る：普段は閉じておく情報 */
+.more-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.more-head {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.more {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  min-width: 0;
+}
+
+.more > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.more > summary::before {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(-45deg);
+  margin-right: 2px;
+  transition: transform 0.15s;
+}
+
+.more[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+.more > summary:hover .more-title {
+  color: var(--accent);
+}
+
+.more-badge {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.more-state .more-badge {
+  color: var(--term-line);
+}
+
+.more-body {
+  padding: 0 12px 12px;
+  min-width: 0;
+}
+
+.more-body .packet-section {
+  margin: 0;
+}
+
+.more-body .sub-title-note {
+  margin: 0 0 6px;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+/* シナリオの画面で用語の説明を出すとき：PCでは左下（右の前へ・次へを隠さない） */
+@media (min-width: 880px) {
+  .term-sheet.left {
+    left: 24px;
+    right: auto;
+  }
+}
+
+@media (max-width: 879px) {
+  .scenario.has-sheet {
+    padding-bottom: 50vh;
+  }
+}
+
+.sheet-list {
+  margin-top: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .more > summary::before {
+    transition: none;
   }
 }

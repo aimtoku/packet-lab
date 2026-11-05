@@ -5,17 +5,15 @@ interface Props {
   views: readonly StateView[]
   activeTerm: string | null
   onTerm: (termId: string) => void
+  /** 枠と見出しを付けない（「詳しく見る」の中に置くとき） */
+  bare?: boolean
 }
 
 /** 機器の中の状態（ARPテーブル、DNSのキャッシュなど）。パケットが届くと書き換わる */
-export function StatePanel({ views, activeTerm, onTerm }: Props) {
+export function StatePanel({ views, activeTerm, onTerm, bare = false }: Props) {
   if (views.length === 0) return null
   const text = (t: string) => <TermText text={t} activeTerm={activeTerm} onTerm={onTerm} />
-  return (
-    <section className="panel state" aria-labelledby="state-title">
-      <h2 id="state-title" className="panel-label">
-        機器の中の状態
-      </h2>
+  const tables = (
       <div className="state-tables">
         {views.map((v) => (
           <div className="state-table" key={v.id}>
@@ -50,6 +48,14 @@ export function StatePanel({ views, activeTerm, onTerm }: Props) {
           </div>
         ))}
       </div>
+  )
+  if (bare) return tables
+  return (
+    <section className="panel state" aria-labelledby="state-title">
+      <h2 id="state-title" className="panel-label">
+        機器の中の状態
+      </h2>
+      {tables}
     </section>
   )
 }
