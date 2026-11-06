@@ -9,6 +9,7 @@ import { phish } from './phish'
 import { sig } from './sig'
 import { sqli } from './sqli'
 import { sso } from './sso'
+import { ssrf } from './ssrf'
 import { storage } from './storage'
 import { supply } from './supply'
 import { tls } from './tls'
@@ -32,6 +33,7 @@ export const LEARNING: Readonly<Record<string, Learning>> = {
   web,
   xss,
   sqli,
+  ssrf,
   sso,
   auth,
   phish,

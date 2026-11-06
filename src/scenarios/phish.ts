@@ -15,7 +15,7 @@ const FW_OUT = 'FW：社内から外部への443番ポート（HTTPS）は許可
 export const phish = defineScenario({
   id: 'phish',
   name: 'クラウドサービスへのログイン',
-  threat: 'リアルタイムフィッシング（ワンタイムパスワードの中継）',
+  threat: 'リアルタイムフィッシング',
   actors: [
     { id: 'pc', name: '社員', sub: 'ブラウザ' },
     { id: 'cloud', name: 'クラウドサービス', sub: 'login.example.com' },
