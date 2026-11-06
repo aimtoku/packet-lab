@@ -859,7 +859,7 @@ export const TERMS: readonly Term[] = [
   {
     id: 'ip-spoofing',
     name: '送信元IPアドレスの偽装',
-    aliases: ['送信元を偽装', '被害者を詐称'],
+    aliases: ['送信元を偽装', '被害者を詐称', 'IPスプーフィング'],
     description: 'パケットの送信元IPアドレスを、自分以外のものに書き換えること。UDPのように接続の手順がないプロトコルでは、受け取った側が見抜けない。',
   },
   {
@@ -1433,6 +1433,99 @@ export const TERMS: readonly Term[] = [
     name: 'GDPR（EU一般データ保護規則）',
     aliases: ['GDPR', 'EU一般データ保護規則'],
     description: 'EUの個人データの保護の規則。EUの域内に拠点がなくても、域内の人に商品やサービスを提供する事業者に適用される。個人データの漏えいは、原則として把握してから72時間以内に監督機関へ通知する。',
+  },
+  {
+    id: 'access-control-models',
+    name: 'アクセス制御のモデル（DAC・MAC・RBAC・ABAC）',
+    aliases: ['任意アクセス制御', '強制アクセス制御', 'ロールベースアクセス制御', '属性ベースアクセス制御', 'DAC', 'RBAC', 'ABAC'],
+    description:
+      'アクセス権限の決め方。任意アクセス制御（DAC）は資源の所有者が決める。強制アクセス制御（MAC）は機密度のラベルでシステムが強制する。ロールベース（RBAC）は役割ごと、属性ベース（ABAC）は利用者・資源・環境の属性の組合せで決める。',
+  },
+  {
+    id: 'secure-os',
+    name: 'セキュアOS',
+    aliases: ['セキュアOS', 'SELinux'],
+    description: '強制アクセス制御などで、管理者（root）の権限も細かく分け、プロセスが乗っ取られたときの被害を限るOS（またはOSの機能）。SELinuxが代表例。',
+  },
+  {
+    id: 'need-to-know',
+    name: 'Need to know',
+    aliases: ['Need to know'],
+    description: '業務で知る必要のある人だけに、必要な情報だけを見せるという原則。最小権限の原則と合わせて使う。',
+  },
+  {
+    id: 'syslog',
+    name: 'syslog',
+    aliases: ['syslog'],
+    description: '機器やOSのログを、ネットワークを通じてログサーバに送る仕組み（プロトコル）。ログを機器の外に集めて、まとめて分析し、改ざんや消去から守るのに使う。',
+  },
+  {
+    id: 'smurf',
+    name: 'Smurf攻撃',
+    aliases: ['Smurf攻撃'],
+    description: '送信元を標的に偽装したICMPのエコー要求を、ネットワークのブロードキャストアドレスに送り、多数の機器からの応答を標的に集中させるDoS攻撃。',
+  },
+  {
+    id: 'replay-attack',
+    name: 'リプレイ攻撃',
+    aliases: ['リプレイ攻撃'],
+    description: '盗聴した認証の通信などを、そのまま再送してなりすます攻撃。毎回変わる値を使うチャレンジレスポンスやワンタイムパスワード、タイムスタンプで防ぐ。',
+  },
+  {
+    id: 'cors',
+    name: 'CORS',
+    aliases: ['CORS', 'Access-Control-Allow-Origin'],
+    description:
+      'ほかのオリジンのスクリプトに、応答の読み取りを許すための仕組み（同一オリジンポリシーの緩和）。許可するオリジンを広げすぎると、罠のサイトから利用者のデータを読み取られる。',
+  },
+  {
+    id: 'sri',
+    name: 'SRI（サブリソース完全性）',
+    aliases: ['SRI'],
+    description: 'Webページが外部（CDNなど）から読み込むスクリプトなどのハッシュ値をHTMLに書いておき、一致しなければ実行しない仕組み。外部のファイルの改ざんを防ぐ。',
+  },
+  {
+    id: 'container',
+    name: 'コンテナ・サーバレス',
+    aliases: ['Kubernetes', 'Docker', 'サーバレス'],
+    description:
+      'コンテナは、アプリと必要な部品をまとめて、OSを共有しながら分離して動かす仕組み（Dockerなど）。Kubernetesなどで多数を管理する。サーバレスは、サーバの管理を事業者に任せ、関数などの単位でアプリを動かす方式。',
+  },
+  {
+    id: 'epss',
+    name: 'EPSS',
+    aliases: ['EPSS'],
+    description: '脆弱性が今後30日以内に悪用される確率を推定した値。深刻度を表すCVSSと組み合わせて、対応の優先度を決める参考にする。',
+  },
+  {
+    id: 'ssh',
+    name: 'SSH',
+    aliases: ['SSH', 'SFTP', 'FTPS'],
+    description: '通信を暗号化して、ほかのコンピュータを遠隔で操作したり、ファイルを転送（SFTP）したりするプロトコル。平文のTelnetやFTPの置き換えに使う。公開鍵による認証もできる。',
+  },
+  {
+    id: 'snmp',
+    name: 'SNMPv3',
+    aliases: ['SNMPv3', 'SNMP'],
+    description: 'ネットワーク機器の状態を監視・設定するプロトコル（SNMP）のバージョン3。v1・v2cは平文のコミュニティ名だけで認証するが、v3は認証と暗号化ができる。',
+  },
+  {
+    id: 'doh',
+    name: 'DNS over HTTPS（DoH）',
+    aliases: ['DNS over HTTPS', 'DNS over TLS', 'DoH', 'DoT'],
+    description: 'DNSの問合せと応答を、HTTPS（DoH）やTLS（DoT）で暗号化して、経路上での盗み見や改ざんを防ぐ方式。組織のDNSでの監視やフィルタリングをすり抜けることにも注意する。',
+  },
+  {
+    id: 'watermark',
+    name: '電子透かし・ステガノグラフィ',
+    aliases: ['電子透かし', 'ステガノグラフィ'],
+    description: '電子透かしは、画像や音声に、見た目ではわからない情報（著作者など）を埋め込む技術。ステガノグラフィは、情報を別のデータの中に隠して存在を気付かせない技術で、マルウェアの通信を隠すのに悪用されることもある。',
+  },
+  {
+    id: 'ldap',
+    name: 'ディレクトリサービス（LDAP）',
+    aliases: ['ディレクトリサービス', 'LDAP'],
+    description: '利用者や機器の情報を一元管理し、認証や検索に使えるようにするサービス。問い合わせのプロトコルとしてLDAPを使う。Active Directoryが代表例。',
   },
   {
     id: 'ransomware',
