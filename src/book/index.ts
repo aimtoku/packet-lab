@@ -1,6 +1,7 @@
 import { security } from './part0'
 import { packet, ipport, tcpudp, dnshttps, fwdmz } from './part1'
 import { sig, tls, sso } from './part2'
+import { auth, phish } from './part2auth'
 import { dns, mail } from './part3'
 import { web, xss, sqli } from './part4'
 import { arp, wlan, vpn } from './part5'
@@ -56,6 +57,8 @@ export const CHAPTERS: readonly Chapter[] = [
   sig,
   tls,
   sso,
+  auth,
+  phish,
   dns,
   mail,
   web,

@@ -2,6 +2,7 @@ import type { Mode } from '../types'
 import { dnshttps, fwdmz, ipport, packet, tcpudp } from './basics'
 import { dns, mail, sig, sqli, tls, web, xss } from './scenarios1'
 import { apt, arp, ddos, sso, storage, supply, vpn, wlan } from './scenarios2'
+import { auth, phish } from './scenarios3'
 import type { PlainTexts } from './types'
 
 /**
@@ -22,6 +23,8 @@ export const PLAIN: Readonly<Record<string, PlainTexts>> = {
   xss,
   sqli,
   sso,
+  auth,
+  phish,
   arp,
   wlan,
   apt,

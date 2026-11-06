@@ -1,10 +1,12 @@
 import type { Scenario } from '../types'
 import { apt } from './apt'
 import { arp } from './arp'
+import { auth } from './auth'
 import { dnshttps, fwdmz, ipport, packet, tcpudp } from './basics'
 import { ddos } from './ddos'
 import { dns } from './dns'
 import { mail } from './mail'
+import { phish } from './phish'
 import { sig } from './sig'
 import { sqli } from './sqli'
 import { sso } from './sso'
@@ -31,6 +33,8 @@ export const scenarios: readonly Scenario[] = [
   xss,
   sqli,
   sso,
+  auth,
+  phish,
   arp,
   wlan,
   apt,
