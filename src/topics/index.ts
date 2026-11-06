@@ -4,11 +4,12 @@ import { cloud } from './cloud'
 import { csirt } from './csirt'
 import { law } from './law'
 import { risk } from './risk'
+import { securedev } from './securedev'
 import type { Topic, TopicBlock } from './types'
 import { vuln } from './vuln'
 
 /** 解説ページ。表示する順番どおりに並べる */
-export const TOPICS: readonly Topic[] = [risk, csirt, vuln, cloud, law, audit]
+export const TOPICS: readonly Topic[] = [risk, csirt, vuln, securedev, cloud, law, audit]
 
 export function findTopic(id: string): Topic | undefined {
   return TOPICS.find((t) => t.id === id)
