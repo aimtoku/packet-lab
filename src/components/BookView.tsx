@@ -156,6 +156,18 @@ export function BookView({ chapter }: { chapter: Chapter }) {
                 </li>
               </ul>
             )}
+            {chapter.links && (
+              <ul className="related-links">
+                {chapter.links.map((l) => (
+                  <li key={l.to}>
+                    <Link to={l.to}>
+                      <span className="related-name">{l.name}</span>
+                      <span className="related-threat">{l.desc}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
             <nav className="book-pager" aria-label="前後の章">
               {prev ? (
                 <Link to={bookPath(prev.id)} className="pager-prev">

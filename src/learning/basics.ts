@@ -235,7 +235,7 @@ export const tcpudp: Learning = {
     prerequisites: ['パケットとヘッダの考え方（基礎1）', 'ポート番号（基礎2）'],
     misconceptions: [
       {
-        wrong: 'UDPは信頼性が低いので、使うべきではない',
+        wrong: 'UDPは届いたかを確かめないので、使うべきではない',
         right: 'UDPは手順が少なく速い。DNS、NTP、音声や動画の配信のように、手早さが大事な通信に向いている',
       },
       {
