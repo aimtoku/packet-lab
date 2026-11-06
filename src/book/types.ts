@@ -106,9 +106,9 @@ export interface BookSection {
   see?: { mode: Mode; step: number; label: string }
 }
 
-export type PartId = 'basics' | 'crypto' | 'name-mail' | 'web' | 'lan' | 'ops'
+export type PartId = 'intro' | 'basics' | 'crypto' | 'name-mail' | 'web' | 'lan' | 'ops'
 
-/** 章。id はシナリオのIDと同じ */
+/** 章。シナリオに対応する章は、id をシナリオのIDと同じにする */
 export interface Chapter {
   id: string
   part: PartId
@@ -116,4 +116,6 @@ export interface Chapter {
   /** 章の冒頭に出す一文 */
   lead: string
   sections: readonly BookSection[]
+  /** シナリオを持たない章で、「次の学習」に出すリンク */
+  links?: readonly { to: string; name: string; desc: string }[]
 }

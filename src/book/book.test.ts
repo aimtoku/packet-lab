@@ -33,7 +33,21 @@ function check(fig: Figure, where: string) {
 
 describe('教科書', () => {
   it('すべてのシナリオに章がある（章のIDはシナリオのID）', () => {
-    expect(CHAPTERS.map((c) => c.id).sort()).toEqual(scenarios.map((s) => s.id).sort())
+    expect(
+      CHAPTERS.filter((c) => findScenario(c.id))
+        .map((c) => c.id)
+        .sort(),
+    ).toEqual(scenarios.map((s) => s.id).sort())
+  })
+
+  it('シナリオを持たない章は、「次の学習」のリンクを持ち、図解へのリンクを持たない', () => {
+    for (const c of CHAPTERS.filter((c) => !findScenario(c.id))) {
+      expect(c.links?.length, c.id).toBeGreaterThan(0)
+      expect(
+        c.sections.some((s) => s.see),
+        c.id,
+      ).toBe(false)
+    }
   })
 
   it('どの部にも章がある', () => {
@@ -83,7 +97,8 @@ describe('教科書', () => {
       })
 
       it('「図解で確かめる」のリンク先が実在する', () => {
-        const scenario = findScenario(c.id)!
+        const scenario = findScenario(c.id)
+        if (!scenario) return
         for (const s of c.sections) {
           if (!s.see) continue
           expect(modesOf(scenario), `${c.id}/${s.id}`).toContain(s.see.mode)

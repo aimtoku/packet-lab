@@ -1,3 +1,4 @@
+import { security } from './part0'
 import { packet, ipport, tcpudp, dnshttps, fwdmz } from './part1'
 import { sig, tls, sso } from './part2'
 import { dns, mail } from './part3'
@@ -7,6 +8,11 @@ import { apt, ddos, storage, supply } from './part6'
 import type { Chapter, PartId } from './types'
 
 export const PARTS: readonly { id: PartId; title: string; lead: string }[] = [
+  {
+    id: 'intro',
+    title: '情報セキュリティの基本',
+    lead: '機密性・完全性・可用性と、それに加わる4つの特性。対策を「何を守るか」で整理する土台です。',
+  },
   {
     id: 'basics',
     title: 'ネットワークの基礎',
@@ -41,6 +47,7 @@ export const PARTS: readonly { id: PartId; title: string; lead: string }[] = [
 
 /** 読む順番どおりに並べる */
 export const CHAPTERS: readonly Chapter[] = [
+  security,
   packet,
   ipport,
   tcpudp,
