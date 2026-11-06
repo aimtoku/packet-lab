@@ -1,12 +1,16 @@
 import { dnshttps, fwdmz, ipport, packet, tcpudp } from './basics'
 import { apt } from './apt'
 import { arp } from './arp'
+import { auth } from './auth'
 import { ddos } from './ddos'
 import { dns } from './dns'
 import { mail } from './mail'
+import { mailenc } from './mailenc'
+import { phish } from './phish'
 import { sig } from './sig'
 import { sqli } from './sqli'
 import { sso } from './sso'
+import { ssrf } from './ssrf'
 import { storage } from './storage'
 import { supply } from './supply'
 import { tls } from './tls'
@@ -27,10 +31,14 @@ export const LEARNING: Readonly<Record<string, Learning>> = {
   dns,
   tls,
   mail,
+  mailenc,
   web,
   xss,
   sqli,
+  ssrf,
   sso,
+  auth,
+  phish,
   arp,
   wlan,
   apt,

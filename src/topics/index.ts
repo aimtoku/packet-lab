@@ -1,14 +1,20 @@
 import { termIdsIn } from '../glossary/match'
+import { aisec } from './aisec'
 import { audit } from './audit'
 import { cloud } from './cloud'
+import { cryptoops } from './cryptoops'
 import { csirt } from './csirt'
 import { law } from './law'
+import { malware } from './malware'
+import { policy } from './policy'
 import { risk } from './risk'
+import { securedev } from './securedev'
 import type { Topic, TopicBlock } from './types'
 import { vuln } from './vuln'
+import { zerotrust } from './zerotrust'
 
 /** 解説ページ。表示する順番どおりに並べる */
-export const TOPICS: readonly Topic[] = [risk, csirt, vuln, cloud, law, audit]
+export const TOPICS: readonly Topic[] = [risk, policy, csirt, vuln, malware, securedev, cryptoops, zerotrust, aisec, cloud, law, audit]
 
 export function findTopic(id: string): Topic | undefined {
   return TOPICS.find((t) => t.id === id)

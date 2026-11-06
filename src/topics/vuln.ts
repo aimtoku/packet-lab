@@ -23,6 +23,9 @@ export const vuln: Topic = {
             ['CWE', '脆弱性の種類（SQLインジェクション、XSS など）を分類した共通の一覧'],
             ['JVN・JVN iPedia', 'IPAとJPCERT/CCが運営する、国内向けの脆弱性対策情報のポータルとデータベース'],
             ['KEV', '米国のCISAが公開する、実際に悪用が確認された脆弱性の一覧。対応の優先度を決める参考にする'],
+            ['EPSS', '脆弱性が今後30日以内に悪用される確率を推定した値。CVSS（深刻度）と組み合わせて、優先度を決める参考にする'],
+            ['SSVC', '悪用の状況、影響、自動で悪用できるかなどを、決定木でたどって、対応の優先度（すぐ対応、計画的に対応など）を決める方法'],
+            ['SCAP', 'CVE・CVSS・CWEなどの共通の形式を組み合わせて、脆弱性の管理や設定の確認を自動化するための標準の集まり'],
           ],
         },
         {
@@ -86,6 +89,10 @@ export const vuln: Topic = {
           kind: 'p',
           text: '対策ができる前に脆弱性の情報が広まると、悪用されるおそれがあります。見つけた人や関係者は、調整した公表日まで情報を秘密にします。',
         },
+        {
+          kind: 'p',
+          text: '製品の開発者が、脆弱性の届出を受け付けて公表するまでの手順は ISO/IEC 29147 に、社内で脆弱性を調べて修正するまでの手順は ISO/IEC 30111 に定められています。不正アクセスの被害を受けた組織が、IPAに届け出る制度（コンピュータ不正アクセス届出制度）もあります。',
+        },
       ],
     },
     {
@@ -114,7 +121,10 @@ export const vuln: Topic = {
     },
   ],
   cues: [
-    { cue: '「CVSSの基本値が9.8の脆弱性が公表された」', think: '自社で該当する製品とバージョンを使っているかを資産の一覧で確かめ、インターネットに公開している機器から優先して対応する' },
+    {
+      cue: '「CVSSの基本値が9.8の脆弱性が公表された」',
+      think: '自社で該当する製品とバージョンを使っているかを資産の一覧で確かめ、インターネットに公開している機器から優先して対応する',
+    },
     { cue: '「修正プログラムを、すぐには適用できない」', think: '回避策（通信の制限、機能の無効化、WAF）で、適用までのリスクを下げる' },
     { cue: '「使っているライブラリに脆弱性が見つかったが、どの製品が影響を受けるか分からない」', think: 'SBOMで、部品とバージョンを管理しておく' },
   ],
@@ -170,7 +180,10 @@ export const vuln: Topic = {
   },
   asOf: '2026年11月時点',
   sources: [
-    { title: 'IPA：情報セキュリティ早期警戒パートナーシップの概要', url: 'https://www.ipa.go.jp/security/guide/vuln/ug65p90000019by0-att/partnership_guideline_overview_jp.pdf' },
+    {
+      title: 'IPA：情報セキュリティ早期警戒パートナーシップの概要',
+      url: 'https://www.ipa.go.jp/security/guide/vuln/ug65p90000019by0-att/partnership_guideline_overview_jp.pdf',
+    },
     { title: 'PwC：CVSS v4.0 の概要', url: 'https://www.pwc.com/jp/ja/knowledge/column/awareness-cyber-security/cvss-ver4.html' },
   ],
 }
