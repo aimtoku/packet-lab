@@ -1015,6 +1015,39 @@ export const TERMS: readonly Term[] = [
     description: 'IT製品のセキュリティ機能が正しく作られているかを、第三者が評価・認証するための国際規格。国内ではIPAが評価・認証の制度（JISEC）を運営している。',
   },
   {
+    id: 'starttls',
+    name: 'STARTTLS',
+    aliases: ['STARTTLS'],
+    description:
+      'SMTPなどで、暗号化していない接続の途中からTLSに切り替える方式。切り替えの前のやり取りは平文なので、経路上でSTARTTLSの表示を消されると、暗号化せずに送ってしまう（ダウングレード攻撃、STARTTLSストリッピング）。',
+  },
+  {
+    id: 'opportunistic-tls',
+    name: '日和見的な暗号化',
+    aliases: ['日和見的な暗号化'],
+    description: '相手が対応していれば暗号化し、対応していなければ暗号化せずに通信する方式。届くことを優先するが、ダウングレード攻撃に弱い。メールサーバ間のSTARTTLSの既定の動き。',
+  },
+  {
+    id: 'mta-sts',
+    name: 'MTA-STS・TLS-RPT',
+    aliases: ['MTA-STS', 'TLS-RPT', 'DANE'],
+    description:
+      'MTA-STSは、受信側のドメインが「TLSを必須にする」方針と正しい受信MTAの名前を、DNSとHTTPSで公開し、送信MTAに守らせる仕組み。TLS-RPTは、TLSでの配送の失敗を受信側に報告する仕組み。DNSSECで証明書の情報を公開するDANEという方法もある。',
+  },
+  {
+    id: 'smime',
+    name: 'S/MIME',
+    aliases: ['S/MIME', 'PGP'],
+    description:
+      '電子証明書を使って、メールそのものを暗号化・署名する方式。受信者の公開鍵で暗号化し、送信者の秘密鍵で署名する。送信者のメールソフトから受信者のメールソフトまで（エンドツーエンドで）守る。証明書の代わりに、利用者同士が公開鍵を信頼し合うPGPもある。',
+  },
+  {
+    id: 'downgrade-attack',
+    name: 'ダウングレード攻撃',
+    aliases: ['ダウングレード攻撃'],
+    description: '通信の当事者に、より弱い暗号や暗号化なしの通信を選ばせる攻撃。TLSの古いバージョンへの誘導や、STARTTLSの表示を消す攻撃がある。',
+  },
+  {
     id: 'ssrf',
     name: 'SSRF（サーバサイドリクエストフォージェリ）',
     aliases: ['SSRF', 'サーバサイドリクエストフォージェリ'],

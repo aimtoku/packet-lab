@@ -6,6 +6,7 @@ import { dnshttps, fwdmz, ipport, packet, tcpudp } from './basics'
 import { ddos } from './ddos'
 import { dns } from './dns'
 import { mail } from './mail'
+import { mailenc } from './mailenc'
 import { phish } from './phish'
 import { sig } from './sig'
 import { sqli } from './sqli'
@@ -30,6 +31,7 @@ export const scenarios: readonly Scenario[] = [
   dns,
   tls,
   mail,
+  mailenc,
   web,
   xss,
   sqli,

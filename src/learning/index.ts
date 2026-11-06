@@ -5,6 +5,7 @@ import { auth } from './auth'
 import { ddos } from './ddos'
 import { dns } from './dns'
 import { mail } from './mail'
+import { mailenc } from './mailenc'
 import { phish } from './phish'
 import { sig } from './sig'
 import { sqli } from './sqli'
@@ -30,6 +31,7 @@ export const LEARNING: Readonly<Record<string, Learning>> = {
   dns,
   tls,
   mail,
+  mailenc,
   web,
   xss,
   sqli,
